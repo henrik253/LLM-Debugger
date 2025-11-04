@@ -1,0 +1,13 @@
+#Coore Web Framework ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+
+# --- Machine Learning ---
+torch==2.4.0        # or the latest supported by your GPU setup
+torchvision==0.19.0
+torchaudio==2.4.0
+
+# --- Optional (for loading models like Phi-3 or GPT-style) ---
+transformers==4.44.2
+accelerate==0.33.0
+safetensors==0.4.3
