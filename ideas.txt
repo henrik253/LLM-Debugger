@@ -1,0 +1,13 @@
+IDEAS
+	ALl visualizations need to as compact as possible. Since the networks architecture is enormus. 
+	
+	- Through a box read out: 
+		The std and avg input weights of a node.
+		The activation function, enable changing the activation function 
+	
+	- If you click on a layer, show a graph that shows the std and avg for each nodes input weights for the whole layer in a graph 
+	
+	- For each timestep show the activations in a graph for each layer: 
+		The user will be able to click on a layer at a given sequence timestep t and inspect the activations. 
+	
+	
