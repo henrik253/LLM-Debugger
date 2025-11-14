@@ -1,5 +1,6 @@
 from .model_wrapper import ModelWrapper
 from transformers import AutoTokenizer, AutoModelForCausalLM
+import json
 
 class Gemma3Wrapper(ModelWrapper):
     def __init__(self):
@@ -17,8 +18,60 @@ class Gemma3Wrapper(ModelWrapper):
         self.model_output = self.tokenizer.decode(outputs[0])
         return self.model_output
 
-    def get_network_architecture(self):
-        print("Dummy: get_network_architecture called")
+    # generated
+    def get_network_architecture_to_json(self):
+      """
+      Converts a PyTorch model architecture into a nested JSON string
+      with the same information as print_model_layers.
+      """
+      model_dict = {}
+      total_params = 0
+      unique_layers = set()
+
+      for name, module in self.model.named_modules():
+          # Skip the root module
+          if name == "":
+              continue
+
+          layer_info = {
+              "type": module.__class__.__name__,
+              "parameters": {}
+          }
+
+          has_params = False
+          for param_name, param in module.named_parameters(recurse=False):
+              has_params = True
+              num_params = param.numel()
+              total_params += num_params
+              unique_layers.add(module.__class__.__name__)
+              
+              layer_info["parameters"][param_name] = {
+                  "shape": list(param.shape),
+                  "num_params": num_params
+              }
+
+          if not has_params:
+              layer_info["parameters"] = {
+                  "-": {"shape": None, "num_params": 0}
+              }
+              unique_layers.add(module.__class__.__name__)
+
+          # Insert into nested dict based on layer name
+          keys = name.split(".")
+          current = model_dict
+          for k in keys[:-1]:
+              if k not in current:
+                  current[k] = {}
+              current = current[k]
+          current[keys[-1]] = layer_info
+
+      summary = {
+          "total_params": total_params,
+          "unique_layers": list(unique_layers),
+          "layers": model_dict
+      }
+
+      return json.dumps(summary, indent=4)
 
     def get_layer_activations(self, layer_index: int, layer_name: str):
         print(f"Dummy: get_layer_activations called for layer {layer_name} ({layer_index})")

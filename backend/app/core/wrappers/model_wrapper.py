@@ -14,7 +14,7 @@ class ModelWrapper(ABC):
         pass  # Return the model output for a given text prompt
 
     @abstractmethod
-    def get_network_architecture(self): 
+    def get_network_architecture_to_json(self): 
       pass
 
     @abstractmethod
