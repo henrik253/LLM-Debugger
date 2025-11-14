@@ -1,4 +1,6 @@
 import json
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
 
 class ModelWrapper():
     def __init__(self,model_name: str):
