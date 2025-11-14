@@ -1,10 +1,10 @@
 import json
 
 class ModelWrapper():
-    def __init__(self, model):
-        self.model = model  # Store the model instance
+    def __init__(self,model_name: str):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
         self.current_timestep = 0  # Keep track of the current timestep
-        self.tokenizer = None
         self.model_output = ''
         self.current_model_output = ''
         self.current_prompt = ''
