@@ -55,4 +55,7 @@ def start_backend():
   thread = threading.Thread(target=run, daemon=True) 
   thread.start() 
 
+  public_url = ngrok.connect(8000)
+  print("Public URL:", public_url)
+
     
