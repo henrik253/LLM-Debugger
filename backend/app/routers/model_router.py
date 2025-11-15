@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from managers.model_manager import ModelManager
-from wrappers.model_wrapper import ModelWrapper
+from backend.app.core.managers.model_manager import ModelManager
+from backend.app.core.wrappers.model_wrapper import ModelWrapper
 
 router = APIRouter(prefix="/model", tags=["Model"])
 

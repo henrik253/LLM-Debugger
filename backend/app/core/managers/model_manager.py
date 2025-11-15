@@ -1,4 +1,4 @@
-from wrappers.model_wrapper import ModelWrapper
+from backend.app.core.wrappers.model_wrapper import ModelWrapper
 
 STANDARD_MODEL_NAME = 'google/gemma-3-12b-it'
 
