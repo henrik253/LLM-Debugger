@@ -1,17 +1,18 @@
 import json
+import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
-class ModelWrapper():
-    def __init__(self,model_name: str):
+class ModelWrapper:
+    def __init__(self, model_name: str):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-        self.current_timestep = 0  # Keep track of the current timestep
+        self.current_timestep = 0
         self.model_output = ''
         self.current_model_output = ''
         self.current_prompt = ''
 
-    def get_network_output(self, prompt: str):
+    def get_model_output(self, prompt: str):
         if prompt == self.current_prompt:
             return self.model_output
 
@@ -22,16 +23,11 @@ class ModelWrapper():
         return self.model_output
 
     def get_network_architecture_to_json(self):
-        """
-        Converts a PyTorch model architecture into a nested JSON string
-        with the same information as print_model_layers.
-        """
         model_dict = {}
         total_params = 0
         unique_layers = set()
 
         for name, module in self.model.named_modules():
-            # Skip the root module
             if name == "":
                 continue
 
@@ -58,7 +54,6 @@ class ModelWrapper():
                 }
                 unique_layers.add(module.__class__.__name__)
 
-            # Insert into nested dict based on layer name
             keys = name.split(".")
             current = model_dict
             for k in keys[:-1]:
@@ -74,29 +69,101 @@ class ModelWrapper():
         }
         return json.dumps(summary, indent=4)
 
-    def get_network_output(self, prompt: str):
-        pass  # Return the model output for a given text prompt
+    def get_layer_activations(self, layer_name: str):
+        activations = {}
 
-    def get_summarized_layers(self) -> dict[list[int], list]:
-        pass  # Return a list describing the types of layers in the model
+        module = dict(self.model.named_modules()).get(layer_name, None)
+        if module is None:
+            raise ValueError(f"Layer '{layer_name}' not found in model")
 
-    def get_layer_activations(self, layer_index: int):
-        pass  # Return the activations of a specific layer
+        def hook_fn(_module, _input, output):
+            if isinstance(output, tuple):
+                output = output[0]
+            activations["value"] = output.detach().cpu().tolist()
 
-    def set_layer_activation(self, layer_index: int, neuron_index: int):
-        pass  # Manually set the activation value of a specific neuron
+        hook = module.register_forward_hook(hook_fn)
 
-    def get_layer_input_param_avgs(self, layer_index: int):
-        pass  # Return average input parameter values for a given layer
+        prompt = self.current_prompt or ""
+        encoded = self.tokenizer(prompt, return_tensors="pt").to(next(self.model.parameters()).device)
+        input_ids = encoded["input_ids"]
 
-    def get_layer_input_param_stds(self, layer_index: int):
-        pass  # Return standard deviations of input parameters for a given layer
+        timestep = self.current_timestep
+        if timestep > 0:
+            timestep = min(timestep, input_ids.shape[1])
+            input_ids = input_ids[:, :timestep]
 
-    def get_layer_param(self, layer_index: int, neuron_index: int, input_index: int):
-        pass  # Get a specific parameter (e.g., weight) of a neuron input connection
+        with torch.no_grad():
+            self.model(input_ids=input_ids)
 
-    def set_layer_param(self, layer_index: int, neuron_index: int, input_index: int, param_value: float):
-        pass  # Set a specific parameter (e.g., weight) to a new value
+        hook.remove()
+
+        if "value" not in activations:
+            raise RuntimeError(f"No activations captured for layer '{layer_name}'")
+
+        return activations["value"]
+
+    def set_layer_activation(self, layer_name: str, neuron_index: int, value: float):
+        if self.current_prompt == "":
+            raise ValueError("No prompt available. Run get_model_output() at least once.")
+
+        module = dict(self.model.named_modules()).get(layer_name, None)
+        if module is None:
+            raise ValueError(f"Layer '{layer_name}' not found in model")
+
+        timestep = int(self.current_timestep)
+        enc = self.tokenizer(self.current_prompt, return_tensors="pt").to(next(self.model.parameters()).device)
+        input_ids = enc["input_ids"]
+
+        if timestep < 1 or timestep > input_ids.shape[1]:
+            raise ValueError(f"Timestep {timestep} out of range for input length {input_ids.shape[1]}")
+
+        input_ids = input_ids[:, :timestep]
+
+        def hook_fn(_module, _input, output):
+            if isinstance(output, tuple):
+                output = output[0]
+            output = output.clone()
+            output[:, -1, neuron_index] = value
+            return output
+
+        hook = module.register_forward_hook(hook_fn)
+        with torch.no_grad():
+            self.model(input_ids=input_ids)
+        hook.remove()
+
+    def get_layer_input_param_avgs(self, layer_name: str):
+        layer = dict(self.model.named_modules()).get(layer_name, None)
+        if layer is None:
+            raise ValueError(f"Layer '{layer_name}' not found in model")
+
+        params = dict(layer.named_parameters())
+        if "weight" not in params:
+            raise ValueError(f"Layer '{layer_name}' has no 'weight' parameter")
+
+        W = params["weight"].detach().cpu()
+        W_flat_per_neuron = W.view(W.shape[0], -1)
+        neuron_avgs = W_flat_per_neuron.mean(dim=1)
+        return neuron_avgs.tolist()
+
+    def get_layer_input_param_stds(self, layer_name: str):
+        layer = dict(self.model.named_modules()).get(layer_name, None)
+        if layer is None:
+            raise ValueError(f"Layer '{layer_name}' not found in model")
+
+        params = dict(layer.named_parameters())
+        if "weight" not in params:
+            raise ValueError(f"Layer '{layer_name}' has no 'weight' parameter")
+
+        W = params["weight"].detach().cpu()
+        W_flat_per_neuron = W.view(W.shape[0], -1)
+        neuron_stds = W_flat_per_neuron.std(dim=1)
+        return neuron_stds.tolist()
+
+    def get_layer_param(self, layer_name: str, neuron_index: int, input_index: int):
+        pass
+
+    def set_layer_param(self, layer_name: str, neuron_index: int, input_index: int, param_value: float):
+        pass
 
     def set_timestep(self, index: int):
         self.current_timestep = index

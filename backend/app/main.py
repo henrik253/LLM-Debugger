@@ -4,6 +4,7 @@ from pyngrok import ngrok, conf
 from google.colab import userdata
 import uvicorn
 import threading
+import asyncio
 
 from backend.app.routers.model_router import router as model_router
 from backend.app.routers.main_router import router as main_router
@@ -25,7 +26,7 @@ def start_uvicorn():
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
-def start_backend():
+async def start_backend():
     print("BACKEND STARTED")
 
     try:
@@ -42,3 +43,7 @@ def start_backend():
 
     public_url = ngrok.connect(8000)
     print("Public URL:", public_url)
+
+    while True: 
+      await asyncio.sleep(5)
+      pass 
