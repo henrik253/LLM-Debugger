@@ -5,7 +5,7 @@ import { ref, onMounted } from 'vue'
 const message = ref('Connecting to backend...')
 
 // Replace this with your actual ngrok URL
-const BACKEND_URL = 'https://bistered-gaylord-contorted.ngrok-free.dev/api'
+const BACKEND_URL = 'https://bistered-gaylord-contorted.ngrok-free.dev'
 
 onMounted(() => {
   let appendix = {headers:{
