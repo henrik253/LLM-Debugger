@@ -22,16 +22,12 @@ interface GraphNode {
   style?: Record<string, any>
 }
 
-interface GraphEdge {
-  id: string
-  source: string
-  target: string
-}
+
 
 interface TreeNode {
   id: string
   label: string
-  children: Map<string, TreeNode>
+  children: TreeNode[]
   depth: number
 }
 
@@ -41,131 +37,173 @@ const props = defineProps<{
 }>()
 
 const nodes = ref<GraphNode[]>([])
-const edges = ref<GraphEdge[]>([])
 
 /* -------------------------------------------------------
    BUILD TREE STRUCTURE FROM PATHS
 ------------------------------------------------------- */
 function buildTree(paths: string[]): TreeNode {
-  const root: TreeNode = {
-    id: '',
-    label: 'root',
-    children: new Map(),
-    depth: 0
-  }
-
+  const nodeMap = new Map<string, TreeNode>()
+  
+  // Create all nodes first
   for (const path of paths) {
     if (!path) continue
     
     const parts = path.split('.')
-    let current = root
-
+    
     for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]
-      const pathSoFar = parts.slice(0, i + 1).join('.')
-
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          id: pathSoFar,
-          label: part,
-          children: new Map(),
-          depth: i + 1
+      const currentPath = parts.slice(0, i + 1).join('.')
+      
+      if (!nodeMap.has(currentPath)) {
+        nodeMap.set(currentPath, {
+          id: currentPath,
+          label: parts[i],
+          children: [],
+          depth: i
         })
       }
-
-      current = current.children.get(part)!
     }
   }
-
+  
+  // Build parent-child relationships
+  const root: TreeNode = {
+    id: '',
+    label: 'root',
+    children: [],
+    depth: -1
+  }
+  
+  for (const [path, node] of nodeMap) {
+    const parts = path.split('.')
+    
+    if (parts.length === 1) {
+      // Top level node
+      root.children.push(node)
+    } else {
+      // Find parent
+      const parentPath = parts.slice(0, -1).join('.')
+      const parent = nodeMap.get(parentPath)
+      if (parent) {
+        parent.children.push(node)
+      }
+    }
+  }
+  
   return root
 }
 
 /* -------------------------------------------------------
-   LAYOUT CALCULATION
+   CALCULATE NESTED LAYOUT
 ------------------------------------------------------- */
-function calculatePositions(node: TreeNode, xOffset = 0, yOffset = 0): { 
+interface LayoutResult {
   nodes: GraphNode[]
-  edges: GraphEdge[]
-  width: number 
-} {
+  width: number
+  height: number
+}
+
+function calculateNestedLayout(
+  node: TreeNode,
+  parentId: string | undefined = undefined
+): LayoutResult {
+  const NODE_PADDING = 20
+  const CHILD_SPACING = 15
+  const MIN_NODE_WIDTH = 150
+  const MIN_NODE_HEIGHT = 60
+  
   const allNodes: GraphNode[] = []
-  const allEdges: GraphEdge[] = []
-
-  const NODE_WIDTH = 180
-  const NODE_HEIGHT = 50
-  const X_SPACING = 100
-  const Y_SPACING = 80
-
-  // Skip the root node itself
-  if (node.depth > 0) {
+  
+  // Process children first to get their sizes
+  const childResults: LayoutResult[] = []
+  let currentX = NODE_PADDING + 10 // Small left padding
+  
+  for (const child of node.children) {
+    const childResult = calculateNestedLayout(child, node.id === '' ? undefined : node.id)
+    childResults.push(childResult)
+    
+    // Position child relative to parent (horizontally)
+    childResult.nodes.forEach(n => {
+      if (n.id === child.id) {
+        n.position = { x: currentX, y: NODE_PADDING + 30 }
+      }
+    })
+    
+    allNodes.push(...childResult.nodes)
+    
+    currentX += childResult.width + CHILD_SPACING
+  }
+  
+  // Calculate this node's size based on children
+  let nodeWidth = MIN_NODE_WIDTH
+  let nodeHeight = MIN_NODE_HEIGHT
+  
+  if (node.children.length > 0) {
+    const maxChildHeight = Math.max(...childResults.map(r => r.height))
+    nodeWidth = Math.max(nodeWidth, currentX + NODE_PADDING - CHILD_SPACING)
+    nodeHeight = Math.max(nodeHeight, maxChildHeight + NODE_PADDING * 2 + 30)
+  }
+  
+  // Create this node (skip root)
+  if (node.id !== '') {
     const graphNode: GraphNode = {
       id: node.id,
       data: { label: node.label },
-      position: { x: xOffset, y: yOffset },
+      position: { x: 0, y: 0 }, // Will be set by parent
+      parentNode: parentId,
+      extent: parentId ? 'parent' : undefined,
       style: {
-        backgroundColor: '#d9eaff',
+        backgroundColor: 'rgba(217, 234, 255, 0.8)',
         border: '2px solid #4a90e2',
-        width: `${NODE_WIDTH}px`,
-        height: `${NODE_HEIGHT}px`,
+        width: `${nodeWidth}px`,
+        height: `${nodeHeight}px`,
         borderRadius: '8px',
-        padding: '8px',
+        padding: `${NODE_PADDING}px`,
         fontSize: '13px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         fontWeight: '500'
       }
     }
+    
     allNodes.push(graphNode)
   }
-
-  // Process children
-  if (node.children.size > 0) {
-    let currentX = xOffset
-    const childY = yOffset + Y_SPACING
-
-    const childArray = Array.from(node.children.values())
-
-    for (const child of childArray) {
-      const result = calculatePositions(child, currentX, childY)
-      
-      allNodes.push(...result.nodes)
-      allEdges.push(...result.edges)
-
-      // Create edge from parent to child
-      if (node.depth > 0) {
-        allEdges.push({
-          id: `${node.id}-${child.id}`,
-          source: node.id,
-          target: child.id
-        })
-      }
-
-      currentX += result.width + X_SPACING
-    }
+  
+  return {
+    nodes: allNodes,
+    width: nodeWidth,
+    height: nodeHeight
   }
-
-  const totalWidth = node.children.size > 0 
-    ? Array.from(node.children.values()).reduce((sum, child) => {
-        const result = calculatePositions(child, 0, 0)
-        return sum + result.width + X_SPACING
-      }, 0) - X_SPACING
-    : NODE_WIDTH
-
-  return { nodes: allNodes, edges: allEdges, width: totalWidth }
 }
 
 /* -------------------------------------------------------
-   CONVERT PATHS TO GRAPH
+   ARRANGE TOP-LEVEL NODES HORIZONTALLY
 ------------------------------------------------------- */
-function pathsToGraph(paths: string[]): { nodes: GraphNode[], edges: GraphEdge[] } {
-  const tree = buildTree(paths)
-  const result = calculatePositions(tree)
+function arrangeTopLevel(tree: TreeNode): { nodes: GraphNode[] } {
+  const allNodes: GraphNode[] = []
+  const TOP_LEVEL_SPACING = 50
   
-  return {
-    nodes: result.nodes,
-    edges: result.edges
+  let currentY = 50
+  
+  for (const topNode of tree.children) {
+    const result = calculateNestedLayout(topNode)
+    
+    // Position this top-level node (vertically stacked)
+    result.nodes.forEach(n => {
+      if (n.id === topNode.id) {
+        n.position = { x: 50, y: currentY }
+      }
+    })
+    
+    allNodes.push(...result.nodes)
+    
+    currentY += result.height + TOP_LEVEL_SPACING
   }
+  
+  return { nodes: allNodes }
+}
+
+/* -------------------------------------------------------
+   CONVERT PATHS TO NESTED GRAPH
+------------------------------------------------------- */
+function pathsToNestedGraph(paths: string[]): { nodes: GraphNode[] } {
+  const tree = buildTree(paths)
+  return arrangeTopLevel(tree)
 }
 
 // Sample data for testing
@@ -186,20 +224,22 @@ const sampleLayers = [
 ]
 
 const graphData = computed(() => {
-   console.log('hgh',props.layers)
   const layerList = props.layers || sampleLayers
-  const graph = pathsToGraph(layerList)
+  const graph = pathsToNestedGraph(layerList)
   
   return {
     nodes: graph.nodes.map((node) => ({
       ...node,
       style: {
         ...node.style,
-        backgroundColor: node.id === props.highlightId ? '#ffe27a' : node.style?.backgroundColor,
-        border: node.id === props.highlightId ? '2px solid #f59e0b' : node.style?.border
+        backgroundColor: node.id === props.highlightId 
+          ? 'rgba(255, 226, 122, 0.9)' 
+          : node.style?.backgroundColor,
+        border: node.id === props.highlightId 
+          ? '2px solid #f59e0b' 
+          : node.style?.border
       }
-    })),
-    edges: graph.edges
+    }))
   }
 })
 
@@ -207,8 +247,7 @@ watch(
   () => graphData.value,
   (data) => {
     nodes.value = data.nodes
-    edges.value = data.edges
-    console.log('Loaded nodes:', nodes.value.length, 'edges:', edges.value.length)
+    console.log('Loaded nodes:', nodes.value.length)
   },
   { immediate: true }
 )
@@ -218,10 +257,10 @@ watch(
   <div class="vue-flow-wrapper">
     <VueFlow
       :nodes="nodes"
-      :edges="edges"
       :fit-view-on-init="true"
-      :min-zoom="0.1"
-      :max-zoom="4"
+      :min-zoom="0.05"
+      :max-zoom="2"
+      elevate-edges-on-select
     >
       <MiniMap />
       <Controls />
