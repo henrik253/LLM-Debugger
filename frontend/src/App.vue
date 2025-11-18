@@ -28,11 +28,11 @@ async function loadModelGraph() {
   const load_resp = await client.loadModel("Qwen/Qwen2.5-1.5B-Instruct");
   console.log(load_resp)
 
-  const architecture = await client.getModelArchitecture("Qwen/Qwen2.5-1.5B-Instruct")
-  console.log("Architecture layers:", architecture.layers)
+  const architecture = await client.getLayerNames("Qwen/Qwen2.5-1.5B-Instruct")
+  console.log("Architecture layers:", architecture)
 
   // Assign to reactive ref AFTER fetching
-  graphJson.value = architecture.layers
+  graphJson.value = architecture
 }
 
 // Call async function
@@ -45,7 +45,7 @@ loadModelGraph()
     <div class="left-panel">
       <TimeSlider :currentTime="currentTime" @updateTime="updateTime" />
       <!-- Only render DebugGraph when graphJson is ready -->
-      <DebugGraph v-if="graphJson" :graphJson="graphJson" :highlightStep="currentTime" />
+      <DebugGraph v-if="graphJson" :layers="graphJson" :highlightStep="currentTime" />
       <ResponseWindow :response="response" />
       <PromptInput @submitPrompt="sendPrompt" />
     </div>
