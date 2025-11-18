@@ -1,47 +1,64 @@
-<script setup>
-import { ref, onMounted } from 'vue'
+<script setup lang="ts">
+import { ref } from 'vue'
+import DebugGraph from './components/DebugGraph.vue'
+import TimeSlider from './components/TimeSlider.vue'
+import ResponseWindow from './components/ResponseWindow.vue'
+import PromptInput from './components/PromptInput.vue'
+import ModelControlPanel from './components/ModelControlPanel.vue'
+import { BackendClient } from './backend_client'
 
-// Reactive variable to display backend message
-const message = ref('Connecting to backend...')
+// Reactive state
+const graphJson = ref<Record<string, any> | null>(null)
+const response = ref<string>('')
+const currentTime = ref<number>(0)
+const model = ref<string>('default-model')
+const layers = ref<string[]>([])
 
-// Replace this with your actual ngrok URL
-const BACKEND_URL = 'https://bistered-gaylord-contorted.ngrok-free.dev'
+const client = new BackendClient("https://bistered-gaylord-contorted.ngrok-free.dev");
 
-onMounted(() => {
-  let appendix = {headers:{
-      "ngrok-skip-browser-warning": "69420",
-    }
-  }; 
-  
-  fetch(BACKEND_URL,appendix)
-    .then(async res => {
-      if (!res.ok) {
-        throw new Error(`HTTP error! Status: ${res.status}`)
-      }
+// Handlers
+function sendPrompt(prompt: string) { console.log('Send prompt:', prompt) }
+function updateTime(time: number) { currentTime.value = time }
+function hookLayer(layerName: string) { console.log('Hook layer:', layerName) }
+function unhookLayer(layerName: string) { console.log('Unhook layer:', layerName) }
+function changeModel(newModel: string) { model.value = newModel }
 
-      // Check that the response is actually JSON
-      const contentType = res.headers.get("content-type")
-      console.log(res)
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("c")
-      }
+// Async fetch
+async function loadModelGraph() {
+  const load_resp = await client.loadModel("Qwen/Qwen2.5-1.5B-Instruct");
+  console.log(load_resp)
 
-      const data = await res.json()
-      message.value = data.message
-    })
-    .catch(err => {
-      // Show friendly message in the UI
-      message.value = 'Connection failed 😢'
-      // Log the full error for debugging
-      console.error('Error connecting to backend:', err)
-    })
-})
+  const architecture = await client.getModelArchitecture("Qwen/Qwen2.5-1.5B-Instruct")
+  console.log("Architecture layers:", architecture.layers)
+
+  // Assign to reactive ref AFTER fetching
+  graphJson.value = architecture.layers
+}
+
+// Call async function
+loadModelGraph()
 </script>
 
 <template>
-  <div style="padding: 2rem; font-family: sans-serif;">
-    <h1>FastAPI + Vue Connection Test</h1>
-    <p>{{ message }}</p>
-    <p><small>Check the console for detailed errors if connection fails.</small></p>
+  <div class="app-container">
+    <!-- Left panel -->
+    <div class="left-panel">
+      <TimeSlider :currentTime="currentTime" @updateTime="updateTime" />
+      <!-- Only render DebugGraph when graphJson is ready -->
+      <DebugGraph v-if="graphJson" :graphJson="graphJson" :highlightStep="currentTime" />
+      <ResponseWindow :response="response" />
+      <PromptInput @submitPrompt="sendPrompt" />
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel">
+      <ModelControlPanel
+        :model="model"
+        :layers="layers"
+        @hookLayer="hookLayer"
+        @unhookLayer="unhookLayer"
+        @changeModel="changeModel"
+      />
+    </div>
   </div>
 </template>
