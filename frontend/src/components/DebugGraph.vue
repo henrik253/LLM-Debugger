@@ -123,12 +123,14 @@ function calculateNestedLayout(
   parentId: string | undefined = undefined,
   ancestorsExpanded: boolean = true
 ): LayoutResult {
-  const NODE_PADDING = 25
+  const NODE_PADDING = 30 // Increased padding
   const CHILD_SPACING = 20
   const MIN_NODE_WIDTH = 180
   const MIN_NODE_HEIGHT = 70
   const COLLAPSED_HEIGHT = 70
-  const HEADER_HEIGHT = 45 // Space for label and expand button
+  const HEADER_HEIGHT = 50 // Slightly larger header
+  const TOP_MARGIN = 10 // Margin between header and children
+  const BOTTOM_MARGIN = 10 // Margin for bottom border visibility
   
   const allNodes: GraphNode[] = []
   const hasChildren = node.children.length > 0
@@ -151,16 +153,20 @@ function calculateNestedLayout(
       // Position child relative to parent (horizontally)
       childResult.nodes.forEach(n => {
         if (n.id === child.id) {
-          n.position = { x: currentX, y: HEADER_HEIGHT }
+          n.position = { x: currentX, y: HEADER_HEIGHT + TOP_MARGIN }
           n.hidden = false
         }
       })
       
       currentX += childResult.width + CHILD_SPACING
     } else {
-      // Mark all descendants as hidden
+      // Mark all descendants as hidden - also remove their backgrounds
       childResult.nodes.forEach(n => {
         n.hidden = true
+        if (n.style) {
+          n.style.opacity = '0'
+          n.style.pointerEvents = 'none'
+        }
       })
     }
     
@@ -174,7 +180,7 @@ function calculateNestedLayout(
   if (node.children.length > 0 && shouldShowChildren) {
     const maxChildHeight = Math.max(...childResults.map(r => r.height))
     nodeWidth = Math.max(nodeWidth, currentX + NODE_PADDING - CHILD_SPACING)
-    nodeHeight = Math.max(nodeHeight, maxChildHeight + HEADER_HEIGHT + NODE_PADDING)
+    nodeHeight = Math.max(nodeHeight, maxChildHeight + HEADER_HEIGHT + TOP_MARGIN + BOTTOM_MARGIN)
   }
   
   // Create this node (skip root)
@@ -193,7 +199,7 @@ function calculateNestedLayout(
       parentNode: parentId,
       extent: parentId ? 'parent' : undefined,
       hidden: !ancestorsExpanded && parentId !== undefined,
-      zIndex: hasChildren ? 10 : 1, // Parent nodes above children
+      zIndex: hasChildren ? 10 : 1,
       style: {
         backgroundColor: shouldShowChildren && hasChildren 
           ? DEPTH_COLORS[colorIndex]
@@ -203,12 +209,17 @@ function calculateNestedLayout(
         height: `${nodeHeight}px`,
         borderRadius: '10px',
         padding: '0',
+        paddingBottom: shouldShowChildren && hasChildren ? '10px' : '0',
         fontSize: '14px',
         fontWeight: '500',
         cursor: hasChildren ? 'pointer' : 'default',
         transition: 'all 0.3s ease',
         overflow: 'visible',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        backgroundClip: 'padding-box',
+        boxSizing: 'border-box',
+        opacity: (!ancestorsExpanded && parentId !== undefined) ? '0' : '1',
+        pointerEvents: (!ancestorsExpanded && parentId !== undefined) ? 'none' : 'auto'
       }
     }
     
@@ -326,9 +337,6 @@ function onNodeClick(event: any) {
           : n.style?.border
       }
     }))
-    
-    // Fit view after layout changes
-    setTimeout(() => fitView({ duration: 300 }), 50)
   }
 }
 </script>
@@ -344,7 +352,7 @@ function onNodeClick(event: any) {
       @node-click="onNodeClick"
     >
       <template #node-default="{ data, id }">
-        <div class="custom-node">
+        <div class="custom-node" :style="{ opacity: nodes.find(n => n.id === id)?.hidden ? 0 : 1 }">
           <div class="node-header">
             <span class="node-label">{{ data.label }}</span>
             <span v-if="data.hasChildren" class="expand-icon">
@@ -374,19 +382,21 @@ function onNodeClick(event: any) {
   display: flex;
   flex-direction: column;
   position: relative;
+  transition: opacity 0.3s ease;
 }
 
 .node-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 16px;
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 8px 8px 0 0;
   position: relative;
   z-index: 100;
-  min-height: 45px;
+  min-height: 50px;
   backdrop-filter: blur(4px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .node-label {
