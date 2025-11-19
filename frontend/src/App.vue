@@ -23,16 +23,22 @@ function hookLayer(layerName: string) { console.log('Hook layer:', layerName) }
 function unhookLayer(layerName: string) { console.log('Unhook layer:', layerName) }
 function changeModel(newModel: string) { model.value = newModel }
 
+const selectedNode = ref('')
+
+function handleSelectedNode(text: string){
+  selectedNode.value = text;
+}
+
 // Async fetch
 async function loadModelGraph() {
   const load_resp = await client.loadModel("Qwen/Qwen2.5-1.5B-Instruct");
   console.log(load_resp)
 
-  const architecture = await client.getLayerNames("Qwen/Qwen2.5-1.5B-Instruct")
-  console.log("Architecture layers:", architecture)
+  const layers = await client.getLayerNames("Qwen/Qwen2.5-1.5B-Instruct")
+  console.log("layers layers:", layers)
 
   // Assign to reactive ref AFTER fetching
-  graphJson.value = architecture
+  graphJson.value = layers
 }
 
 // Call async function
@@ -45,7 +51,7 @@ loadModelGraph()
     <div class="left-panel">
       <TimeSlider :currentTime="currentTime" @updateTime="updateTime" />
       <!-- Only render DebugGraph when graphJson is ready -->
-      <DebugGraph v-if="graphJson" :layers="graphJson" :highlightStep="currentTime" />
+      <DebugGraph @node-selected="handleSelectedNode" v-if="graphJson" :layers="graphJson" :highlightStep="currentTime" />
       <ResponseWindow :response="response" />
       <PromptInput @submitPrompt="sendPrompt" />
     </div>
@@ -55,6 +61,7 @@ loadModelGraph()
       <ModelControlPanel
         :model="model"
         :layers="layers"
+        :currentNode="selectedNode"
         @hookLayer="hookLayer"
         @unhookLayer="unhookLayer"
         @changeModel="changeModel"
@@ -62,3 +69,40 @@ loadModelGraph()
     </div>
   </div>
 </template>
+<style scoped>
+.app-container {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;            /* full height layout */
+  width: 100%;
+  overflow: hidden;
+}
+
+/* Left side takes remaining space */
+.left-panel {
+  flex: 1;                  /* <-- THIS prevents DebugGraph from taking all space */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Right side has fixed width */
+.right-panel {
+  width: 350px;             /* adjust as needed */
+  border-left: 1px solid #ccc;
+  padding: 10px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* Optional: give DebugGraph some constraints */
+.left-panel > * {
+  flex-shrink: 0;
+}
+
+/* If DebugGraph needs to grow instead of pushing others */
+DebugGraph {
+  flex: 1;
+  min-height: 0;            /* critical for flex layouts */
+}
+</style>

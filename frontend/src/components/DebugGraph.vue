@@ -36,6 +36,10 @@ const props = defineProps<{
   highlightId?: string
 }>()
 
+const emit = defineEmits<{
+  'node-selected': [path: string]
+}>()
+
 const nodes = ref<GraphNode[]>([])
 const expandedNodes = ref<Set<string>>(new Set())
 
@@ -315,6 +319,16 @@ watch(
 
 function onNodeClick(event: any) {
   const node = event.node
+  
+  // If it's a leaf node (no children), emit the path and log it
+  if (!node.data.hasChildren) {
+    const path = node.id
+    console.log('Selected node path:', path)
+    emit('node-selected', path)
+    return
+  }
+  
+  // Otherwise, toggle expand/collapse for parent nodes
   if (node.data.hasChildren) {
     if (expandedNodes.value.has(node.id)) {
       expandedNodes.value.delete(node.id)
