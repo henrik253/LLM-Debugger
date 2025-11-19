@@ -9,6 +9,7 @@ import { BackendClient } from './backend_client'
 
 // Reactive state
 const graphJson = ref<Record<string, any> | null>(null)
+const architectureJson = ref<Record<string, any> | null>(null)
 const response = ref<string>('')
 const currentTime = ref<number>(0)
 const model = ref<string>('default-model')
@@ -32,13 +33,13 @@ function handleSelectedNode(text: string){
 // Async fetch
 async function loadModelGraph() {
   const load_resp = await client.loadModel("Qwen/Qwen2.5-1.5B-Instruct");
-  console.log(load_resp)
 
   const layers = await client.getLayerNames("Qwen/Qwen2.5-1.5B-Instruct")
-  console.log("layers layers:", layers)
+  const architecture = await client.getModelArchitecture("Qwen/Qwen2.5-1.5B-Instruct")
 
   // Assign to reactive ref AFTER fetching
   graphJson.value = layers
+  architectureJson.value = architecture
 }
 
 // Call async function
@@ -62,9 +63,11 @@ loadModelGraph()
         :model="model"
         :layers="layers"
         :currentNode="selectedNode"
+        :architecture="architectureJson"
         @hookLayer="hookLayer"
         @unhookLayer="unhookLayer"
         @changeModel="changeModel"
+       
       />
     </div>
   </div>

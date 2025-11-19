@@ -10,6 +10,9 @@ import '@vue-flow/core/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 
+
+
+
 /* -------------------------------------------------------
    TYPES
 ------------------------------------------------------- */
@@ -312,7 +315,7 @@ watch(
   () => graphData.value,
   (data) => {
     nodes.value = data.nodes
-    console.log('Loaded nodes:', nodes.value.length)
+
   },
   { immediate: true }
 )
@@ -323,7 +326,6 @@ function onNodeClick(event: any) {
   // If it's a leaf node (no children), emit the path and log it
   if (!node.data.hasChildren) {
     const path = node.id
-    console.log('Selected node path:', path)
     emit('node-selected', path)
     return
   }
