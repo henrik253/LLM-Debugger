@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-
+import { BackendClient } from '@/backend_client';
 const props = defineProps<{
   model: string
   layers: string[]
   currentNode: string
   architecture: Record<string, any>
 }>()
+
+const client = BackendClient.getInstance()
 
 const emit = defineEmits<{
   (e: 'hookLayer', layer: string): void
@@ -38,18 +40,41 @@ watch(
   }
 )
 
+function handle_layer(layer : any){
+  
+  
+  if(layer.parameters.bias){
+    console.log(layer.parameters.bias)
+  }
+
+  if(layer.parameters.weight){
+    console.log(layer.parameters.weight)
+    // display layer.parameters.weight.num_params
+    // display layer.parameters.weight.shape is a array with all the dimension 
+    
+  }
+
+  const biases = client.getLayerBiases(props.model,layer)
+  const avg_weights = client.getLayerInputAvgs(props.model,layer)
+  const std_weights = client.getLayerInputStds(props.model,layer)
+  const activations = client.getLayerActivations(props.model,layer)
+
+  console.log(biases)
+  
+}
+
 // Function that runs whenever currentNode changes
 function handleCurrentNodeChange(node: string) {
   console.log("Handling new currentNode:", node)
   //console.log(props.architecture)
   const path = props.currentNode.split('.') 
-  console.log('ccc',path)
+  console.log(path)
   let currentLayer = props.architecture.layers
-  for(const key in path){
+
+  for(const key of path){
     currentLayer = currentLayer[key]
-    console.log(key,'fff',currentLayer)
   }
-  console.log(currentLayer)
+  handle_layer(currentLayer)
 }
 
 function selectModel(model: string) {
@@ -70,7 +95,7 @@ function selectModel(model: string) {
     <div class="model-selector">
       <label>Select Model:</label>
       <div class="dropdown-container">
-        <input 
+          <input 
           type="text" 
           :value="localModel" 
           @focus="showModelDropdown = true"

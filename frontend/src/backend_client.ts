@@ -1,7 +1,27 @@
 // backendRequests.ts
 export class BackendClient {
-  constructor(private baseUrl: string = "https://bistered-gaylord-contorted.ngrok-free.dev") {
-    this.baseUrl = baseUrl
+  private static instance: BackendClient | null = null;
+  private baseUrl: string;
+
+  private constructor(baseUrl: string = "https://bistered-gaylord-contorted.ngrok-free.dev") {
+    this.baseUrl = baseUrl;
+  }
+
+  static getInstance(): BackendClient {
+    if (!BackendClient.instance) {
+      BackendClient.instance = new BackendClient();
+    }
+    return BackendClient.instance;
+  }
+
+  // Optional: Method to explicitly set base URL after instantiation
+  setBaseUrl(baseUrl: string): void {
+    this.baseUrl = baseUrl;
+  }
+
+  // Optional: Get current base URL
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   private fetchJson<T>(appendix: string, init?: RequestInit): Promise<T> {
@@ -12,14 +32,13 @@ export class BackendClient {
       ...(init?.headers || {}),
     };
 
-    return fetch( this.baseUrl + appendix , { ...init, headers })
+    return fetch(this.baseUrl + appendix, { ...init, headers })
       .then(async res => {
         if (!res.ok) {
           throw new Error(`HTTP error! Status: ${res.status}`);
         }
 
         const contentType = res.headers.get("content-type");
-        
 
         if (!contentType || !contentType.includes("application/json")) {
           throw new Error("Response is not JSON");
@@ -94,3 +113,10 @@ export class BackendClient {
     });
   }
 }
+
+// Usage examples:
+// const client = BackendClient.getInstance();
+// client.setBaseUrl("https://custom-url.com");
+// 
+// Anywhere else in your app:
+// const client = BackendClient.getInstance(); // Same instance, no need to specify URL again
