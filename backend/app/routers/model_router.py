@@ -106,3 +106,13 @@ def set_timestep(model: str, index: int):
 
     wrapper.set_timestep(index)
     return {"timestep": index}
+
+@router.post("/max-new-tokens")
+def set_max_new_tokens(model: str,max_new_tokens: int):
+  try: 
+    wrapper = model_manager.get_wrapper(model)
+  except: 
+    raise HTTPException(status_code=404, detail="Model not loaded")
+  
+  wrapper.set_max_new_tokens(max_new_tokens)
+  return {{"max_new_tokens": max_new_tokens}}
