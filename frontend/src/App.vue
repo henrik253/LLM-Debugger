@@ -56,7 +56,6 @@ loadModelGraph("Qwen/Qwen2.5-1.5B-Instruct")
   <div class="app-container">
     <!-- Left panel -->
     <div class="left-panel">
-      <TimeSlider :currentTime="currentTime" @updateTime="updateTime" />
       <!-- Only render DebugGraph when graphJson is ready -->
       <DebugGraph @node-selected="handleSelectedNode" v-if="graphJson" :layers="graphJson" :highlightStep="currentTime" />
       <ResponseWindow :response="response" />
@@ -70,6 +69,7 @@ loadModelGraph("Qwen/Qwen2.5-1.5B-Instruct")
         :layers="layers"
         :currentNode="selectedNode"
         :architecture="architectureJson"
+        :model_output="response"
         @hookLayer="hookLayer"
         @unhookLayer="unhookLayer"
         @changeModel="changeModel"

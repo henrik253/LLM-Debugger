@@ -115,4 +115,4 @@ def set_max_new_tokens(model: str,max_new_tokens: int):
     raise HTTPException(status_code=404, detail="Model not loaded")
   
   wrapper.set_max_new_tokens(max_new_tokens)
-  return {{"max_new_tokens": max_new_tokens}}
+  return {"max_new_tokens": max_new_tokens}

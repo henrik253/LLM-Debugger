@@ -6,7 +6,8 @@ const props = defineProps<{
   model: string
   layers: string[]
   currentNode: string
-  architecture: Record<string, any>
+  architecture: Record<string, any>,
+  model_output: string, 
 }>()
 
 const client = BackendClient.getInstance()
@@ -19,6 +20,10 @@ const emit = defineEmits<{
 
 const localModel = ref(props.model)
 const showModelDropdown = ref(false)
+
+// Timestep slider state
+const timestepValue = ref(0)
+const timestepMax = ref(100) // You can adjust this based on your needs
 
 // Example model names
 const exampleModels = [
@@ -56,6 +61,21 @@ const biasesOption = ref<any>(null)
 const avgWeightsOption = ref<any>(null)
 const stdWeightsOption = ref<any>(null)
 const activationsOption = ref<any>(null)
+
+// Watch for timestep changes
+watch(timestepValue, async (newValue) => {
+  try {
+    await client.setTimestep(props.model, newValue)
+    console.log('Timestep set to:', newValue)
+    
+    // Reload all data if a layer is selected
+    if (currentLayerId.value && layerData.value.layerInfo) {
+      await handle_layer(layerData.value.layerInfo, currentLayerId.value)
+    }
+  } catch (error) {
+    console.error('Error setting timestep:', error)
+  }
+})
 
 // Watch for data changes and update chart options
 watch(() => layerData.value.biases, (data) => {
@@ -100,14 +120,37 @@ watch(() => layerData.value.std_weights, (data) => {
   }
 })
 
+watch(
+  () => props.model_output,
+  (newVal, oldVal) => {
+    console.log("model_output changed:", oldVal, "→", newVal)
+    console.log(newVal.length)
+    onModelOutputChanged(newVal)
+  }
+)
+
+function onModelOutputChanged(output: string) {
+  timestepMax.value = output.length
+}
+
 watch(() => layerData.value.activations, (data) => {
   if (data && data.length > 0) {
-    activationsOption.value = {
-      title: { text: 'Layer Activations', textStyle: { fontSize: 14 } },
-      tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: data.map((_, i) => i) },
-      yAxis: { type: 'value' },
-      series: [{ type: 'line', data, showSymbol: false, sampling: 'lttb' }]
+    // Handle deeply nested array structure - unwrap extra levels
+    let unwrappedData = data;
+    while (Array.isArray(unwrappedData) && unwrappedData.length === 1 && Array.isArray(unwrappedData[0])) {
+      unwrappedData = unwrappedData[0];
+    }
+    
+    if (unwrappedData && unwrappedData.length > 0) {
+      activationsOption.value = {
+        title: { text: 'Layer Activations', textStyle: { fontSize: 14 } },
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: unwrappedData.map((_, i) => i) },
+        yAxis: { type: 'value' },
+        series: [{ type: 'line', data: unwrappedData, showSymbol: false, sampling: 'lttb' }]
+      }
+    } else {
+      activationsOption.value = null
     }
   } else {
     activationsOption.value = null
@@ -133,32 +176,53 @@ async function handle_layer(layer_information: any, layer_id: string) {
 
   if (layer_information.parameters?.weight) {
     console.log(layer_information.parameters.weight)
-    // display layer_information.parameters.weight.num_params
-    // display layer_information.parameters.weight.shape is a array with all the dimension 
   }
 
+  // Biases
   try {
     const biases = await client.getLayerBiases(props.model, layer_id)
     console.log('biases', biases)
-    layerData.value.biases = Array.isArray(biases) ? biases : (biases?.biases || null)
-    
+    layerData.value.biases = Array.isArray(biases)
+      ? biases
+      : (biases?.biases || null)
+  } catch (err) {
+    console.error('biases error', err)
+    layerData.value.biases = null
+  }
+
+  // Avg weights
+  try {
     const avg_weights = await client.getLayerInputAvgs(props.model, layer_id)
     console.log('avg_weights', avg_weights)
-    layerData.value.avg_weights = Array.isArray(avg_weights) ? avg_weights : (avg_weights?.input_avgs || null)
-    
+    layerData.value.avg_weights = Array.isArray(avg_weights)
+      ? avg_weights
+      : (avg_weights?.input_avgs || null)
+  } catch (err) {
+    console.error('avg_weights error', err)
+    layerData.value.avg_weights = null
+  }
+
+  // Std weights
+  try {
     const std_weights = await client.getLayerInputStds(props.model, layer_id)
     console.log('weights', std_weights)
-    layerData.value.std_weights = Array.isArray(std_weights) ? std_weights : (std_weights?.input_stds || null)
-    
+    layerData.value.std_weights = Array.isArray(std_weights)
+      ? std_weights
+      : (std_weights?.input_stds || null)
+  } catch (err) {
+    console.error('std_weights error', err)
+    layerData.value.std_weights = null
+  }
+
+  // Activations
+  try {
     const activations = await client.getLayerActivations(props.model, layer_id)
     console.log('activations', activations)
-    layerData.value.activations = Array.isArray(activations) ? activations : (activations?.activations || null)
-  } catch (error) {
-    console.error('Error fetching layer data:', error)
-    // Reset data on error
-    layerData.value.biases = null
-    layerData.value.avg_weights = null
-    layerData.value.std_weights = null
+    layerData.value.activations = Array.isArray(activations)
+      ? activations
+      : (activations?.activations || null)
+  } catch (err) {
+    console.error('activations error', err)
     layerData.value.activations = null
   }
 }
@@ -235,6 +299,22 @@ async function handleSetNeuronBias() {
       </div>
     </div>
 
+    <!-- Timestep Slider Section -->
+    <div class="timestep-section">
+      <label>Timestep:</label>
+      <div class="slider-container">
+        <input
+          type="range"
+          :min="0"
+          :max="timestepMax"
+          :step="1"
+          v-model.number="timestepValue"
+          class="timestep-slider"
+        />
+        <span class="timestep-value">{{ timestepValue }}</span>
+      </div>
+    </div>
+
     <!-- Current Node Heading -->
     <div class="current-node">
       <h3>Current Node:</h3>
@@ -277,7 +357,7 @@ async function handleSetNeuronBias() {
       <v-chart 
         v-if="activationsOption" 
         :option="activationsOption" 
-        style="height: 300px; width: 100%; margin-bottom: 20px;" 
+        style="height: 300px; width: 100%; margin-bottom: 5px;" 
       />
     </div>
   </div>
@@ -356,6 +436,75 @@ async function handleSetNeuronBias() {
 
 .dropdown-item:hover {
   background-color: #f5f5f5;
+}
+
+.timestep-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+}
+
+.timestep-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.timestep-slider {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: #ddd;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.timestep-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4a90e2;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.timestep-slider::-webkit-slider-thumb:hover {
+  background: #357abd;
+}
+
+.timestep-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4a90e2;
+  cursor: pointer;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.timestep-slider::-moz-range-thumb:hover {
+  background: #357abd;
+}
+
+.timestep-value {
+  min-width: 40px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
 }
 
 .current-node {
