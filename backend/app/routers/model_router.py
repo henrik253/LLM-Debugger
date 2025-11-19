@@ -50,7 +50,7 @@ def get_layer_names(model: str):
     return {"layers": wrapper.get_layer_names()}
 
 
-@router.get("/layer/{layer_name}/activations")
+@router.get("/activations")
 def get_layer_activations(model: str, layer_name: str):
     try:
         wrapper = model_manager.get_wrapper(model)
@@ -59,7 +59,7 @@ def get_layer_activations(model: str, layer_name: str):
     return {"activations": wrapper.get_layer_activations(layer_name)}
 
 
-@router.get("/layer/{layer_name}/biases")
+@router.get("/biases")
 def get_layer_biases(model: str, layer_name: str):
     try:
         wrapper = model_manager.get_wrapper(model)
@@ -68,7 +68,7 @@ def get_layer_biases(model: str, layer_name: str):
     return wrapper.get_layer_biases(layer_name)
 
 
-@router.post("/layer/{layer_name}/bias/{neuron_index}/set")
+@router.post("/set-neuron-bias")
 def set_neuron_bias(model: str, layer_name: str, neuron_index: int, bias_value: float):
     try:
         wrapper = model_manager.get_wrapper(model)
@@ -79,7 +79,7 @@ def set_neuron_bias(model: str, layer_name: str, neuron_index: int, bias_value: 
     return {"status": "ok"}
 
 
-@router.get("/layer/{layer_name}/input-avgs")
+@router.get("/input-avgs")
 def get_layer_input_param_avgs(model: str, layer_name: str):
     try:
         wrapper = model_manager.get_wrapper(model)
@@ -88,7 +88,7 @@ def get_layer_input_param_avgs(model: str, layer_name: str):
     return {"input_avgs": wrapper.get_layer_input_param_avgs(layer_name)}
 
 
-@router.get("/layer/{layer_name}/input-stds")
+@router.get("input-stds")
 def get_layer_input_param_stds(model: str, layer_name: str):
     try:
         wrapper = model_manager.get_wrapper(model)
@@ -97,7 +97,7 @@ def get_layer_input_param_stds(model: str, layer_name: str):
     return {"input_stds": wrapper.get_layer_input_param_stds(layer_name)}
 
 
-@router.post("/timestep/set")
+@router.post("/timestep")
 def set_timestep(model: str, index: int):
     try:
         wrapper = model_manager.get_wrapper(model)
