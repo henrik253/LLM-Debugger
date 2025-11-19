@@ -1,4 +1,3 @@
-import json
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import gc
@@ -99,8 +98,8 @@ class ModelWrapper:
       total_length = self.current_timestep
 
       # If timestep is 0 or too small, use full prompt only
-      if total_length <= input_ids.shape[1]:
-          effective_ids = input_ids[:, :total_length]
+      if total_length == 0 or total_length <= input_ids.shape[1]:
+          effective_ids = input_ids[:, :max(1, total_length)] # Ensure at least 1 token if total_length is 0 but input_ids is not empty
       else:
           # Need to generate to reach total length
           generate_tokens = total_length - input_ids.shape[1]
@@ -121,6 +120,9 @@ class ModelWrapper:
 
       # Now run full forward pass on the final sequence to capture activations
       with torch.no_grad():
+          # Check if effective_ids is empty before passing to model
+          if effective_ids.numel() == 0: # Check if the tensor has any elements
+              raise ValueError("Effective input IDs are empty, cannot get activations. Ensure a valid prompt and timestep.")
           self.model(input_ids=effective_ids)
 
       hook.remove()
@@ -202,13 +204,13 @@ class ModelWrapper:
         with torch.no_grad():
             for name, param in self.model.named_parameters():
                 if name == f"{layer_name}.bias":
-                    
+
                     if neuron_index >= param.shape[0]:
                         raise ValueError(
                             f"Neuron index {neuron_index} out of range "
                             f"for bias of size {param.shape[0]}"
                         )
-                    
+
                     # Set the bias value
                     param[neuron_index] = bias_value
                     return  # Done!
@@ -217,10 +219,10 @@ class ModelWrapper:
         raise ValueError(f"Layer '{layer_name}'.bias not found or has no bias")
 
     def reset_model_params(self):
-      del self.model 
+      del self.model
       gc.collect()
       self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map="cuda")
-      torch.cuda.empty_cache()  
+      torch.cuda.empty_cache()
 
     def set_timestep(self, index: int):
         self.current_timestep = index

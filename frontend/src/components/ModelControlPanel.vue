@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { BackendClient } from '@/backend_client';
+
 const props = defineProps<{
   model: string
   layers: string[]
@@ -31,6 +32,88 @@ const exampleModels = [
 // Keep local model synced
 watch(() => props.model, (val) => (localModel.value = val))
 
+// Layer data storage
+const layerData = ref<{
+  biases: number[] | null
+  avg_weights: number[] | null
+  std_weights: number[] | null
+  activations: number[] | null
+  layerInfo: any
+}>({
+  biases: null,
+  avg_weights: null,
+  std_weights: null,
+  activations: null,
+  layerInfo: null
+})
+
+const currentLayerId = ref<string>('')
+const neuronIndex = ref<number>(0)
+const biasValue = ref<number>(0)
+
+// Chart options
+const biasesOption = ref<any>(null)
+const avgWeightsOption = ref<any>(null)
+const stdWeightsOption = ref<any>(null)
+const activationsOption = ref<any>(null)
+
+// Watch for data changes and update chart options
+watch(() => layerData.value.biases, (data) => {
+  if (data && data.length > 0) {
+    biasesOption.value = {
+      title: { text: 'Layer Biases', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: data.map((_, i) => i) },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data, showSymbol: false, sampling: 'lttb' }]
+    }
+  } else {
+    biasesOption.value = null
+  }
+})
+
+watch(() => layerData.value.avg_weights, (data) => {
+  if (data && data.length > 0) {
+    avgWeightsOption.value = {
+      title: { text: 'Average Weights', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: data.map((_, i) => i) },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data, showSymbol: false, sampling: 'lttb' }]
+    }
+  } else {
+    avgWeightsOption.value = null
+  }
+})
+
+watch(() => layerData.value.std_weights, (data) => {
+  if (data && data.length > 0) {
+    stdWeightsOption.value = {
+      title: { text: 'Standard Deviation Weights', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: data.map((_, i) => i) },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data, showSymbol: false, sampling: 'lttb' }]
+    }
+  } else {
+    stdWeightsOption.value = null
+  }
+})
+
+watch(() => layerData.value.activations, (data) => {
+  if (data && data.length > 0) {
+    activationsOption.value = {
+      title: { text: 'Layer Activations', textStyle: { fontSize: 14 } },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: data.map((_, i) => i) },
+      yAxis: { type: 'value' },
+      series: [{ type: 'line', data, showSymbol: false, sampling: 'lttb' }]
+    }
+  } else {
+    activationsOption.value = null
+  }
+})
+
 // Call a function when currentNode changes
 watch(
   () => props.currentNode,
@@ -40,50 +123,83 @@ watch(
   }
 )
 
-async function handle_layer(layer : any,node : string){
+async function handle_layer(layer_information: any, layer_id: string) {
+  currentLayerId.value = layer_id
+  layerData.value.layerInfo = layer_information
   
-  
-  if(layer.parameters.bias){
-    console.log(layer.parameters.bias)
+  if (layer_information.parameters?.bias) {
+    console.log(layer_information.parameters.bias)
   }
 
-  if(layer.parameters.weight){
-    console.log(layer.parameters.weight)
-    // display layer.parameters.weight.num_params
-    // display layer.parameters.weight.shape is a array with all the dimension 
+  if (layer_information.parameters?.weight) {
+    console.log(layer_information.parameters.weight)
+    // display layer_information.parameters.weight.num_params
+    // display layer_information.parameters.weight.shape is a array with all the dimension 
+  }
+
+  try {
+    const biases = await client.getLayerBiases(props.model, layer_id)
+    console.log('biases', biases)
+    layerData.value.biases = Array.isArray(biases) ? biases : (biases?.biases || null)
     
+    const avg_weights = await client.getLayerInputAvgs(props.model, layer_id)
+    console.log('avg_weights', avg_weights)
+    layerData.value.avg_weights = Array.isArray(avg_weights) ? avg_weights : (avg_weights?.input_avgs || null)
+    
+    const std_weights = await client.getLayerInputStds(props.model, layer_id)
+    console.log('weights', std_weights)
+    layerData.value.std_weights = Array.isArray(std_weights) ? std_weights : (std_weights?.input_stds || null)
+    
+    const activations = await client.getLayerActivations(props.model, layer_id)
+    console.log('activations', activations)
+    layerData.value.activations = Array.isArray(activations) ? activations : (activations?.activations || null)
+  } catch (error) {
+    console.error('Error fetching layer data:', error)
+    // Reset data on error
+    layerData.value.biases = null
+    layerData.value.avg_weights = null
+    layerData.value.std_weights = null
+    layerData.value.activations = null
   }
-
-  const biases = await client.getLayerBiases(props.model,node)
-  console.log(biases)
-  const avg_weights = await client.getLayerInputAvgs(props.model,layer)
-  console.log(avg_weights)
-  const std_weights = await client.getLayerInputStds(props.model,layer)
-  console.log(std_weights)
-  const activations = await client.getLayerActivations(props.model,layer)
-  console.log(activations)
-
-
 }
 
 // Function that runs whenever currentNode changes
 function handleCurrentNodeChange(node: string) {
   console.log("Handling new currentNode:", node)
-  //console.log(props.architecture)
+  
+  if (!node) return
+  
   const path = props.currentNode.split('.') 
   console.log(path)
   let currentLayer = props.architecture.layers
 
-  for(const key of path){
+  for (const key of path) {
     currentLayer = currentLayer[key]
   }
-  handle_layer(currentLayer,node)
+  handle_layer(currentLayer, node)
 }
 
 function selectModel(model: string) {
   localModel.value = model
   emit('changeModel', model)
   showModelDropdown.value = false
+}
+
+async function handleSetNeuronBias() {
+  if (!currentLayerId.value) {
+    alert('No layer selected')
+    return
+  }
+  
+  try {
+    await client.setNeuronBias(props.model, currentLayerId.value, neuronIndex.value, biasValue.value)
+    alert(`Neuron bias set successfully for neuron ${neuronIndex.value}`)
+    // Refresh the data
+    await handle_layer(layerData.value.layerInfo, currentLayerId.value)
+  } catch (error) {
+    console.error('Error setting neuron bias:', error)
+    alert('Failed to set neuron bias')
+  }
 }
 </script>
 
@@ -98,7 +214,7 @@ function selectModel(model: string) {
     <div class="model-selector">
       <label>Select Model:</label>
       <div class="dropdown-container">
-          <input 
+        <input 
           type="text" 
           :value="localModel" 
           @focus="showModelDropdown = true"
@@ -116,7 +232,6 @@ function selectModel(model: string) {
             {{ modelName }}
           </div>
         </div>
-        <!-- Add model params here under architectureJson.total_params-->
       </div>
     </div>
 
@@ -126,7 +241,45 @@ function selectModel(model: string) {
       <p class="node-name">{{ currentNode || 'None selected' }}</p>
     </div>
 
-    <!-- Rest of your control panel content -->
+    <!-- Set Neuron Bias Section -->
+    <div v-if="currentLayerId" class="neuron-bias-section">
+      <h3>Set Neuron Bias</h3>
+      <div class="input-group">
+        <div class="input-field">
+          <label>Neuron Index:</label>
+          <input type="number" v-model.number="neuronIndex" min="0" />
+        </div>
+        <div class="input-field">
+          <label>Bias Value:</label>
+          <input type="number" v-model.number="biasValue" step="0.01" />
+        </div>
+      </div>
+      <button @click="handleSetNeuronBias" class="set-bias-btn">Set Bias</button>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+      <v-chart 
+        v-if="biasesOption" 
+        :option="biasesOption" 
+        style="height: 300px; width: 100%; margin-bottom: 20px;" 
+      />
+      <v-chart 
+        v-if="avgWeightsOption" 
+        :option="avgWeightsOption" 
+        style="height: 300px; width: 100%; margin-bottom: 20px;" 
+      />
+      <v-chart 
+        v-if="stdWeightsOption" 
+        :option="stdWeightsOption" 
+        style="height: 300px; width: 100%; margin-bottom: 20px;" 
+      />
+      <v-chart 
+        v-if="activationsOption" 
+        :option="activationsOption" 
+        style="height: 300px; width: 100%; margin-bottom: 20px;" 
+      />
+    </div>
   </div>
 </template>
 
@@ -227,5 +380,78 @@ function selectModel(model: string) {
   font-weight: 500;
   color: #333;
   font-family: monospace;
+}
+
+.neuron-bias-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+}
+
+.neuron-bias-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.input-field {
+  flex: 1;
+}
+
+.input-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #555;
+}
+
+.input-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.input-field input:focus {
+  outline: none;
+  border-color: #4a90e2;
+}
+
+.set-bias-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: #4a90e2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.set-bias-btn:hover {
+  background-color: #357abd;
+}
+
+.set-bias-btn:active {
+  background-color: #2a5d8f;
+}
+
+.charts-section {
+  margin-top: 24px;
 }
 </style>

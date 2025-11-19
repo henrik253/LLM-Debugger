@@ -12,13 +12,19 @@ const graphJson = ref<Record<string, any> | null>(null)
 const architectureJson = ref<Record<string, any> | null>(null)
 const response = ref<string>('')
 const currentTime = ref<number>(0)
-const model = ref<string>('default-model')
+const model = ref<string>('Qwen/Qwen2.5-1.5B-Instruct')
 const layers = ref<string[]>([])
+const currentModel = ref<string>('')
 
-const client = new BackendClient("https://bistered-gaylord-contorted.ngrok-free.dev");
+const client = BackendClient.getInstance();
+
 
 // Handlers
-function sendPrompt(prompt: string) { console.log('Send prompt:', prompt) }
+async function sendPrompt(prompt: string) { 
+  const model_output = await client.generateOutput(model.value,prompt)
+  response.value = model_output
+}
+
 function updateTime(time: number) { currentTime.value = time }
 function hookLayer(layerName: string) { console.log('Hook layer:', layerName) }
 function unhookLayer(layerName: string) { console.log('Unhook layer:', layerName) }
@@ -31,11 +37,11 @@ function handleSelectedNode(text: string){
 }
 
 // Async fetch
-async function loadModelGraph() {
-  const load_resp = await client.loadModel("Qwen/Qwen2.5-1.5B-Instruct");
+async function loadModelGraph(modelName : string) {
+  const load_resp = await client.loadModel(modelName);
 
-  const layers = await client.getLayerNames("Qwen/Qwen2.5-1.5B-Instruct")
-  const architecture = await client.getModelArchitecture("Qwen/Qwen2.5-1.5B-Instruct")
+  const layers = await client.getLayerNames(modelName)
+  const architecture = await client.getModelArchitecture(modelName)
 
   // Assign to reactive ref AFTER fetching
   graphJson.value = layers
@@ -43,7 +49,7 @@ async function loadModelGraph() {
 }
 
 // Call async function
-loadModelGraph()
+loadModelGraph("Qwen/Qwen2.5-1.5B-Instruct")
 </script>
 
 <template>

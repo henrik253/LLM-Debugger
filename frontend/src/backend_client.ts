@@ -115,7 +115,7 @@ export class BackendClient {
   // GET /model/input-stds (Note: Python route is missing leading slash)
   async getLayerInputStds(model: string, layerName: string) {
     const res = await this.fetchJson<{ input_stds: any }>(
-      `/model/input-stds?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`
+      `/modelinput-stds?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`
     );
     return res.input_stds;
   }
