@@ -40,7 +40,7 @@ watch(
   }
 )
 
-function handle_layer(layer : any){
+async function handle_layer(layer : any,node : string){
   
   
   if(layer.parameters.bias){
@@ -54,13 +54,16 @@ function handle_layer(layer : any){
     
   }
 
-  const biases = client.getLayerBiases(props.model,layer)
-  const avg_weights = client.getLayerInputAvgs(props.model,layer)
-  const std_weights = client.getLayerInputStds(props.model,layer)
-  const activations = client.getLayerActivations(props.model,layer)
-
+  const biases = await client.getLayerBiases(props.model,node)
   console.log(biases)
-  
+  const avg_weights = await client.getLayerInputAvgs(props.model,layer)
+  console.log(avg_weights)
+  const std_weights = await client.getLayerInputStds(props.model,layer)
+  console.log(std_weights)
+  const activations = await client.getLayerActivations(props.model,layer)
+  console.log(activations)
+
+
 }
 
 // Function that runs whenever currentNode changes
@@ -74,7 +77,7 @@ function handleCurrentNodeChange(node: string) {
   for(const key of path){
     currentLayer = currentLayer[key]
   }
-  handle_layer(currentLayer)
+  handle_layer(currentLayer,node)
 }
 
 function selectModel(model: string) {

@@ -88,7 +88,7 @@ def get_layer_input_param_avgs(model: str, layer_name: str):
     return {"input_avgs": wrapper.get_layer_input_param_avgs(layer_name)}
 
 
-@router.get("input-stds")
+@router.get("/input-stds")
 def get_layer_input_param_stds(model: str, layer_name: str):
     try:
         wrapper = model_manager.get_wrapper(model)

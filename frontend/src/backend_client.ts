@@ -1,122 +1,138 @@
-// backendRequests.ts
+// backend_client.ts
 export class BackendClient {
   private static instance: BackendClient | null = null;
   private baseUrl: string;
 
-  private constructor(baseUrl: string = "https://bistered-gaylord-contorted.ngrok-free.dev") {
+  constructor(baseUrl: string = "https://bistered-gaylord-contorted.ngrok-free.dev") {
     this.baseUrl = baseUrl;
   }
 
-  static getInstance(): BackendClient {
+  static getInstance(baseUrl?: string): BackendClient {
     if (!BackendClient.instance) {
-      BackendClient.instance = new BackendClient();
+      BackendClient.instance = new BackendClient(baseUrl);
     }
     return BackendClient.instance;
   }
 
-  // Optional: Method to explicitly set base URL after instantiation
   setBaseUrl(baseUrl: string): void {
     this.baseUrl = baseUrl;
   }
 
-  // Optional: Get current base URL
   getBaseUrl(): string {
     return this.baseUrl;
   }
 
-  private fetchJson<T>(appendix: string, init?: RequestInit): Promise<T> {
-    // Always include the ngrok header
+  private async fetchJson<T>(appendix: string, init?: RequestInit): Promise<T> {
     const headers = {
       "ngrok-skip-browser-warning": "69420",
       "Content-Type": "application/json",
       ...(init?.headers || {}),
     };
 
-    return fetch(this.baseUrl + appendix, { ...init, headers })
-      .then(async res => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-        }
+    try {
+      const res = await fetch(this.baseUrl + appendix, { ...init, headers });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
 
-        const contentType = res.headers.get("content-type");
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Response is not JSON");
+      }
 
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Response is not JSON");
-        }
-
-        return res.json() as Promise<T>;
-      })
-      .catch(err => {
-        console.error("Error connecting to backend:", err);
-        throw err;
-      });
+      return res.json() as Promise<T>;
+    } catch (err) {
+      console.error("Error connecting to backend:", err);
+      throw err;
+    }
   }
 
+  // POST /model/load
   loadModel(model: string) {
-    return this.fetchJson("/model/load?model=" + model, {
-      method: "POST"
-    });
+    return this.fetchJson<{ status: string; model: string }>(
+      `/model/load?model=${encodeURIComponent(model)}`,
+      { method: "POST" }
+    );
   }
 
+  // POST /model/reset
   resetModel(model: string) {
-    return this.fetchJson("/model/reset", {
-      method: "POST",
-      body: JSON.stringify({ model }),
-    });
+    return this.fetchJson<{ status: string; model: string }>(
+      `/model/reset?model=${encodeURIComponent(model)}`,
+      { method: "POST" }
+    );
   }
 
-  getModelArchitecture(model: string) {
-    return this.fetchJson(`/model/architecture?model=${encodeURIComponent(model)}`)
-      .then(res => res.architecture);
+  // GET /model/architecture
+  async getModelArchitecture(model: string) {
+    const res = await this.fetchJson<{ architecture: any }>(
+      `/model/architecture?model=${encodeURIComponent(model)}`
+    );
+    return res.architecture;
   }
 
-  getLayerNames(model: string) {
-    return this.fetchJson(`/model/layers?model=${encodeURIComponent(model)}`)
-      .then(res => res.layers);
+  // GET /model/layers
+  async getLayerNames(model: string) {
+    const res = await this.fetchJson<{ layers: string[] }>(
+      `/model/layers?model=${encodeURIComponent(model)}`
+    );
+    return res.layers;
   }
 
-  generateOutput(model: string, prompt: string) {
-    return this.fetchJson(`/model/generate?model=${encodeURIComponent(model)}&prompt=${encodeURIComponent(prompt)}`)
-      .then(res => res.generated);
+  // GET /model/generate
+  async generateOutput(model: string, prompt: string) {
+    const res = await this.fetchJson<{ generated: string }>(
+      `/model/generate?model=${encodeURIComponent(model)}&prompt=${encodeURIComponent(prompt)}`
+    );
+    return res.generated;
   }
 
-  getLayerActivations(model: string, layerName: string) {
-    return this.fetchJson(`/model/layer/${encodeURIComponent(layerName)}/activations?model=${encodeURIComponent(model)}`)
-      .then(res => res.activations);
+  // GET /model/activations
+  async getLayerActivations(model: string, layerName: string) {
+    const res = await this.fetchJson<{ activations: any }>(
+      `/model/activations?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`
+    );
+    return res.activations;
   }
 
+  // GET /model/biases
   getLayerBiases(model: string, layerName: string) {
-    return this.fetchJson(`/model/layer/${encodeURIComponent(layerName)}/biases?model=${encodeURIComponent(model)}`);
+    console.log('fetching', `/model/biases?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`)
+    return this.fetchJson<any>(
+      `/model/biases?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`
+    );
   }
 
-  getLayerInputAvgs(model: string, layerName: string) {
-    return this.fetchJson(`/model/layer/${encodeURIComponent(layerName)}/input-avgs?model=${encodeURIComponent(model)}`)
-      .then(res => res.input_avgs);
+  // GET /model/input-avgs
+  async getLayerInputAvgs(model: string, layerName: string) {
+    const res = await this.fetchJson<{ input_avgs: any }>(
+      `/model/input-avgs?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`
+    );
+    return res.input_avgs;
   }
 
-  getLayerInputStds(model: string, layerName: string) {
-    return this.fetchJson(`/model/layer/${encodeURIComponent(layerName)}/input-stds?model=${encodeURIComponent(model)}`)
-      .then(res => res.input_stds);
+  // GET /model/input-stds (Note: Python route is missing leading slash)
+  async getLayerInputStds(model: string, layerName: string) {
+    const res = await this.fetchJson<{ input_stds: any }>(
+      `/model/input-stds?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}`
+    );
+    return res.input_stds;
   }
 
+  // POST /model/set-neuron-bias
   setNeuronBias(model: string, layerName: string, neuronIndex: number, biasValue: number) {
-    return this.fetchJson(`/model/layer/${encodeURIComponent(layerName)}/bias/${neuronIndex}/set`, {
-      method: "POST",
-      body: JSON.stringify({ model, bias_value: biasValue }),
-    });
+    return this.fetchJson<{ status: string }>(
+      `/model/set-neuron-bias?model=${encodeURIComponent(model)}&layer_name=${encodeURIComponent(layerName)}&neuron_index=${neuronIndex}&bias_value=${biasValue}`,
+      { method: "POST" }
+    );
   }
 
+  // POST /model/timestep
   setTimestep(model: string, index: number) {
-    return this.fetchJson("/model/timestep/set", {
-      method: "POST",
-      body: JSON.stringify({ model, index }),
-    });
+    return this.fetchJson<{ timestep: number }>(
+      `/model/timestep?model=${encodeURIComponent(model)}&index=${index}`,
+      { method: "POST" }
+    );
   }
 }
-
-// Usage examples:
-// const client = BackendClient.getInstance();
-// client.setBaseUrl("https://custom-url.com");
-// 
-// Anywhere else in your app:
-// const client = BackendClient.getInstance(); // Same instance, no need to specify URL again
