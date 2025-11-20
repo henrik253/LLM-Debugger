@@ -94,6 +94,7 @@ class ModelWrapper:
               output = output.hidden_states
           
           # Now output should be a tensor
+        
           if hasattr(output, 'detach'):
               activations["value"] = output.detach().cpu()
           else:
@@ -259,5 +260,5 @@ class ModelWrapper:
     def set_timestep(self, index: int):
         self.current_timestep = index
 
-    def set_temperature(self,temp : int):
+    def set_temperature(self,temp : float):
       self.temperature = temp

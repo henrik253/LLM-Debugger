@@ -155,16 +155,14 @@ watch(() => layerData.value.activations, (data) => {
   if (data && data.length > 0) {
     // Handle deeply nested array structure - unwrap extra levels
     let unwrappedData = data;
+    console.log('raw ac', data)
     while (Array.isArray(unwrappedData) && unwrappedData.length === 1 && Array.isArray(unwrappedData[0])) {
 
 
       unwrappedData = unwrappedData[0];
     }
-
-
-    if(timestepValue.value > 1){
-      unwrappedData = unwrappedData[timestepValue.value]
-    }
+    console.log('unwrapped')
+    console.log(unwrappedData)
 
     if (unwrappedData && unwrappedData.length > 0) {
       activationsOption.value = {

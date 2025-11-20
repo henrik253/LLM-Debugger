@@ -128,7 +128,6 @@ export class BackendClient {
     );
   }
 
-  // POST /model/timestep
   setTimestep(model: string, index: number) {
     return this.fetchJson<{ timestep: number }>(
       `/model/timestep?model=${encodeURIComponent(model)}&index=${index}`,
@@ -136,10 +135,17 @@ export class BackendClient {
     );
   }
 
-    // POST /model/timestep
+
   setMaxNewTokens(model: string, max_new_tokens: number) {
-    return this.fetchJson<{ timestep: number }>(
+    return this.fetchJson<{ max_new_tokens: number }>(
       `/model/max-new-tokens?model=${encodeURIComponent(model)}&max_new_tokens=${max_new_tokens}`,
+      { method: "POST" }
+    );
+  }
+
+  setTemperature(model: string, temperature: number) {
+    return this.fetchJson<{ temperature: number }>(
+      `/model/max-new-tokens?model=${encodeURIComponent(model)}&temp=${temperature}`,
       { method: "POST" }
     );
   }
