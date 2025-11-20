@@ -74,106 +74,72 @@ class ModelWrapper:
         }
         return summary
 
-    def get_layer_activations(self, layer_name: str):
-      
-      if self.model_output == '':
-          return None 
-      
-      activations = {}
-
-      # Find the layer/module
-      module = dict(self.model.named_modules()).get(layer_name)
-      if module is None:
-          raise ValueError(f"Layer '{layer_name}' not found in model")
-
-      # Hook to capture activations
-      def hook_fn(_module, _input, output):
-
-          # Handle different output types
-          if isinstance(output, tuple):
-              output = output[0]
-          print('module input output')
-          print(_module)
-          print(_input)
-          print(output)
-          # Check if it's a model output object (like CausalLMOutputWithPast)
-          if hasattr(output, 'last_hidden_state'):
-              output = output.last_hidden_state
-          elif hasattr(output, 'hidden_states'):
-              output = output.hidden_states
-          
-          # Now output should be a tensor
+    def get_layer_activations(self, layer_name):
+        # Dictionary to store captured activations
+        activations = {}
         
-          if hasattr(output, 'detach'):
-              activations["value"] = output.detach().cpu()
-          else:
-              raise TypeError(f"Unexpected output type in hook: {type(output)}")
-
-      hook = module.register_forward_hook(hook_fn)
-
-      # Get the full text (prompt + any generated output)
-      full_text = self.current_prompt or ""
-      
-      # If we have generated output, append it
-      if hasattr(self, 'model_output') and self.model_output:
-          full_text = self.model_output
-      
-      # Split by words (whitespace)
-      words = full_text.split()
-      
-      # Get the desired number of words based on timestep
-      timestep = self.current_timestep
-      
-      if timestep <= 0:
-          raise ValueError("Timestep must be greater than 0")
-      
-      if timestep > len(words):
-          # If timestep exceeds available words, need to generate more
-          words_needed = timestep - len(words)
-          
-          # Generate tokens to get more words
-          device = next(self.model.parameters()).device
-          encoded = self.tokenizer(full_text, return_tensors="pt").to(device)
-          
-          # Generate more tokens (estimate: ~1.3 tokens per word on average)
-          estimated_tokens = int(words_needed * 1.5)
-          gen_outputs = self.model.generate(
-              encoded["input_ids"],
-              max_new_tokens=estimated_tokens,
-              do_sample=False,
-          )
-          
-          # Decode and get full text
-          full_text = self.tokenizer.decode(gen_outputs[0], skip_special_tokens=True)
-          words = full_text.split()
-          
-          # Check if we have enough words now
-          if timestep > len(words):
-              timestep = len(words)  # Use all available words
-      
-      # Slice to get only the first 'timestep' words
-      sliced_words = words[:timestep]
-      sliced_text = " ".join(sliced_words)
-      
-      # Tokenize the sliced text
-      device = next(self.model.parameters()).device
-      encoded = self.tokenizer(sliced_text, return_tensors="pt").to(device)
-      effective_ids = encoded["input_ids"]
-      
-      # Run forward pass with the sliced text
-      with torch.no_grad():
-          if effective_ids.numel() == 0:
-              raise ValueError("Effective input IDs are empty, cannot get activations.")
-          self.model(input_ids=effective_ids)
-
-      hook.remove()
-
-      if "value" not in activations:
-          raise RuntimeError(f"No activations captured for layer '{layer_name}'")
-
-      # activations["value"] has shape [1, num_tokens, hidden_size]
-      # Return all activations for all tokens in the sliced text
-      return activations["value"].tolist()
+        # Get the module we want to hook
+        module = dict(self.model.named_modules())[layer_name]
+        
+        # Define hook function to capture activations
+        def hook_fn(_module, _input, output):
+            # Handle different output types
+            if isinstance(output, tuple):
+                output = output[0]
+            
+            # Check if it's a model output object (like CausalLMOutputWithPast)
+            if hasattr(output, 'last_hidden_state'):
+                output = output.last_hidden_state
+            elif hasattr(output, 'hidden_states'):
+                output = output.hidden_states
+            
+            # Save the activations
+            activations["value"] = output.detach().cpu()
+        
+        # Register the hook
+        hook = module.register_forward_hook(hook_fn)
+        
+        try:
+            # Get the full generated text from model_output
+            full_text = self.model_output
+            
+            # Split by words (whitespace)
+            words = full_text.split()
+            
+            # Validate timestep
+            if self.current_timestep <= 0:
+                raise ValueError("Timestep must be greater than 0")
+            
+            if self.current_timestep > len(words):
+                raise ValueError(
+                    f"Timestep {self.current_timestep} exceeds available words ({len(words)}). "
+                    f"Full text: '{full_text}'"
+                )
+            
+            # Slice to get only the first 'current_timestep' words
+            sliced_words = words[:self.current_timestep]
+            sliced_text = " ".join(sliced_words)
+            
+            # Tokenize the sliced text
+            device = next(self.model.parameters()).device
+            encoded = self.tokenizer(sliced_text, return_tensors="pt").to(device)
+            input_ids = encoded["input_ids"]
+            
+            # Run forward pass with the sliced text (this triggers the hook)
+            with torch.no_grad():
+                self.model(input_ids=input_ids)
+            
+        finally:
+            # Always remove the hook, even if there's an error
+            hook.remove()
+        
+        # Check that we captured activations
+        if "value" not in activations:
+            raise RuntimeError(f"No activations captured for layer '{layer_name}'")
+        
+        # Return activations as a list
+        # Shape: [1, num_tokens, hidden_size]
+        return activations["value"].tolist()
 
     def get_layer_biases(self, layer_name: str):
 
