@@ -54,15 +54,30 @@ loadModelGraph("Qwen/Qwen2.5-1.5B-Instruct")
 
 <template>
   <div class="app-container">
-    <!-- Left panel -->
+    
+    <!-- LEFT SIDE -->
     <div class="left-panel">
-      <!-- Only render DebugGraph when graphJson is ready -->
-      <DebugGraph @node-selected="handleSelectedNode" v-if="graphJson" :layers="graphJson" :highlightStep="currentTime" />
-      <ResponseWindow :response="response" />
-      <PromptInput @submitPrompt="sendPrompt" />
+
+      <div class="debug-graph-wrapper">
+        <DebugGraph 
+          v-if="graphJson" 
+          :layers="graphJson" 
+          :highlightStep="currentTime"
+          @node-selected="handleSelectedNode"
+        />
+      </div>
+
+      <div class="response-window-wrapper">
+        <ResponseWindow :response="response" />
+      </div>
+
+      <div class="prompt-wrapper">
+        <PromptInput @submitPrompt="sendPrompt" />
+      </div>
+
     </div>
 
-    <!-- Right panel -->
+    <!-- RIGHT SIDE -->
     <div class="right-panel">
       <ModelControlPanel
         :model="model"
@@ -73,45 +88,50 @@ loadModelGraph("Qwen/Qwen2.5-1.5B-Instruct")
         @hookLayer="hookLayer"
         @unhookLayer="unhookLayer"
         @changeModel="changeModel"
-       
       />
     </div>
   </div>
 </template>
-<style scoped>
-.app-container {
+
+<style scoped>.app-container {
   display: flex;
-  flex-direction: row;
-  height: 100vh;            /* full height layout */
-  width: 100%;
+  height: 100vh;
   overflow: hidden;
 }
 
-/* Left side takes remaining space */
+/* LEFT PANEL */
 .left-panel {
-  flex: 1;                  /* <-- THIS prevents DebugGraph from taking all space */
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* Right side has fixed width */
+/* DebugGraph takes all remaining space */
+.debug-graph-wrapper {
+  flex: 1;
+  min-height: 0;        /* 🟢 Critical: allows shrinking */
+  overflow: auto;       /* 🟢 Makes DebugGraph scroll instead of pushing UI */
+}
+
+/* Response window scrolls inside but keeps a reasonable height */
+.response-window-wrapper {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+/* Prompt input stays at the bottom */
+.prompt-wrapper {
+  margin-top: 10px;
+}
+
+/* RIGHT PANEL */
 .right-panel {
-  width: 350px;             /* adjust as needed */
+  width: 350px;
   border-left: 1px solid #ccc;
   padding: 10px;
-  box-sizing: border-box;
   overflow-y: auto;
 }
 
-/* Optional: give DebugGraph some constraints */
-.left-panel > * {
-  flex-shrink: 0;
-}
-
-/* If DebugGraph needs to grow instead of pushing others */
-DebugGraph {
-  flex: 1;
-  min-height: 0;            /* critical for flex layouts */
-}
 </style>

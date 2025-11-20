@@ -135,4 +135,12 @@ export class BackendClient {
       { method: "POST" }
     );
   }
+
+    // POST /model/timestep
+  setMaxNewTokens(model: string, max_new_tokens: number) {
+    return this.fetchJson<{ timestep: number }>(
+      `/model/max-new-tokens?model=${encodeURIComponent(model)}&max_new_tokens=${max_new_tokens}`,
+      { method: "POST" }
+    );
+  }
 }

@@ -8,6 +8,7 @@ const props = defineProps<{
   currentNode: string
   architecture: Record<string, any>,
   model_output: string, 
+  modelOutputTokens: string, 
 }>()
 
 const client = BackendClient.getInstance()
@@ -24,6 +25,23 @@ const showModelDropdown = ref(false)
 // Timestep slider state
 const timestepValue = ref(0)
 const timestepMax = ref(100) // You can adjust this based on your needs
+
+
+const maxNewTokensValue = ref<number | null>(null)
+
+async function handleSetMaxNewTokens() {
+  if (maxNewTokensValue.value === null || isNaN(maxNewTokensValue.value)) {
+    alert("Please enter a valid number")
+    return
+  }
+
+  try {
+    await client.setMaxNewTokens(props.model, maxNewTokensValue.value)
+  } catch (err) {
+    console.error("Error setting max new tokens:", err)
+    alert("Failed to set max new tokens")
+  }
+}
 
 // Example model names
 const exampleModels = [
@@ -62,20 +80,20 @@ const avgWeightsOption = ref<any>(null)
 const stdWeightsOption = ref<any>(null)
 const activationsOption = ref<any>(null)
 
-// Watch for timestep changes
-watch(timestepValue, async (newValue) => {
+async function handleTimestepChange() {
   try {
-    await client.setTimestep(props.model, newValue)
-    console.log('Timestep set to:', newValue)
-    
-    // Reload all data if a layer is selected
+    await client.setTimestep(props.model, timestepValue.value)
+    console.log("Sent timestep update:", timestepValue.value)
+
+    // reload layer data if a layer is selected
     if (currentLayerId.value && layerData.value.layerInfo) {
       await handle_layer(layerData.value.layerInfo, currentLayerId.value)
     }
-  } catch (error) {
-    console.error('Error setting timestep:', error)
+  } catch (err) {
+    console.error("Error setting timestep:", err)
   }
-})
+  handle_layer(currentLayerInformation,currentLayer)
+}
 
 // Watch for data changes and update chart options
 watch(() => layerData.value.biases, (data) => {
@@ -130,7 +148,7 @@ watch(
 )
 
 function onModelOutputChanged(output: string) {
-  timestepMax.value = output.length
+  timestepMax.value = output.split(' ').length
 }
 
 watch(() => layerData.value.activations, (data) => {
@@ -138,9 +156,16 @@ watch(() => layerData.value.activations, (data) => {
     // Handle deeply nested array structure - unwrap extra levels
     let unwrappedData = data;
     while (Array.isArray(unwrappedData) && unwrappedData.length === 1 && Array.isArray(unwrappedData[0])) {
+
+
       unwrappedData = unwrappedData[0];
     }
-    
+
+
+    if(timestepValue.value > 1){
+      unwrappedData = unwrappedData[timestepValue.value]
+    }
+
     if (unwrappedData && unwrappedData.length > 0) {
       activationsOption.value = {
         title: { text: 'Layer Activations', textStyle: { fontSize: 14 } },
@@ -227,6 +252,10 @@ async function handle_layer(layer_information: any, layer_id: string) {
   }
 }
 
+let currentLayerInformation = ''
+let currentLayer = ''
+
+
 // Function that runs whenever currentNode changes
 function handleCurrentNodeChange(node: string) {
   console.log("Handling new currentNode:", node)
@@ -240,6 +269,8 @@ function handleCurrentNodeChange(node: string) {
   for (const key of path) {
     currentLayer = currentLayer[key]
   }
+  currentLayer = currentLayer
+  currentLayerInformation = node 
   handle_layer(currentLayer, node)
 }
 
@@ -282,7 +313,6 @@ async function handleSetNeuronBias() {
           type="text" 
           :value="localModel" 
           @focus="showModelDropdown = true"
-          @blur="() => setTimeout(() => showModelDropdown = false, 200)"
           placeholder="Click to select a model"
           readonly
         />
@@ -309,10 +339,34 @@ async function handleSetNeuronBias() {
           :max="timestepMax"
           :step="1"
           v-model.number="timestepValue"
+          @change="handleTimestepChange"
           class="timestep-slider"
         />
         <span class="timestep-value">{{ timestepValue }}</span>
       </div>
+      <label>Max New Tokens:</label>
+  <div class="input-group">
+    <input
+      type="number"
+      v-model.number="maxNewTokensValue"
+      min="1"
+      placeholder="Enter max new tokens"
+      style="flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #ccc;"
+    />
+    <button 
+      @click="handleSetMaxNewTokens"
+      style="
+        padding: 8px 12px;
+        background-color: #4a90e2;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+      "
+    >
+      Set
+    </button>
+  </div>
     </div>
 
     <!-- Current Node Heading -->

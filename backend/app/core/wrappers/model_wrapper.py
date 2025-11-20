@@ -11,7 +11,7 @@ class ModelWrapper:
         self.model_output = ''
         self.current_model_output = ''
         self.current_prompt = ''
-        self.max_new_tokens = 20
+        self.temperature = 0.1
 
     def get_model_output(self, prompt: str):
         if prompt == self.current_prompt:
@@ -19,7 +19,7 @@ class ModelWrapper:
 
         self.current_prompt = prompt
         input_ids = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-        outputs = self.model.generate(**input_ids,max_new_tokens = self.max_new_tokens)
+        outputs = self.model.generate(**input_ids,temperature=self.temperature)
         self.model_output = self.tokenizer.decode(outputs[0])
         return self.model_output
 
@@ -83,47 +83,77 @@ class ModelWrapper:
 
       # Hook to capture activations
       def hook_fn(_module, _input, output):
+          # Handle different output types
           if isinstance(output, tuple):
               output = output[0]
-          activations["value"] = output.detach().cpu()
+          
+          # Check if it's a model output object (like CausalLMOutputWithPast)
+          if hasattr(output, 'last_hidden_state'):
+              output = output.last_hidden_state
+          elif hasattr(output, 'hidden_states'):
+              output = output.hidden_states
+          
+          # Now output should be a tensor
+          if hasattr(output, 'detach'):
+              activations["value"] = output.detach().cpu()
+          else:
+              raise TypeError(f"Unexpected output type in hook: {type(output)}")
 
       hook = module.register_forward_hook(hook_fn)
 
-      # Encode the prompt
-      prompt = self.current_prompt or ""
-      device = next(self.model.parameters()).device
-      encoded = self.tokenizer(prompt, return_tensors="pt").to(device)
-      input_ids = encoded["input_ids"]
-
-      # Current timestep = desired length for prompt + generated tokens
-      total_length = self.current_timestep
-
-      # If timestep is 0 or too small, use full prompt only
-      if total_length == 0 or total_length <= input_ids.shape[1]:
-          effective_ids = input_ids[:, :max(1, total_length)] # Ensure at least 1 token if total_length is 0 but input_ids is not empty
-      else:
-          # Need to generate to reach total length
-          generate_tokens = total_length - input_ids.shape[1]
-
-          # Generate-only the needed amount
+      # Get the full text (prompt + any generated output)
+      full_text = self.current_prompt or ""
+      
+      # If we have generated output, append it
+      if hasattr(self, 'model_output') and self.model_output:
+          full_text = self.model_output
+      
+      # Split by words (whitespace)
+      words = full_text.split()
+      
+      # Get the desired number of words based on timestep
+      timestep = self.current_timestep
+      
+      if timestep <= 0:
+          raise ValueError("Timestep must be greater than 0")
+      
+      if timestep > len(words):
+          # If timestep exceeds available words, need to generate more
+          words_needed = timestep - len(words)
+          
+          # Generate tokens to get more words
+          device = next(self.model.parameters()).device
+          encoded = self.tokenizer(full_text, return_tensors="pt").to(device)
+          
+          # Generate more tokens (estimate: ~1.3 tokens per word on average)
+          estimated_tokens = int(words_needed * 1.5)
           gen_outputs = self.model.generate(
-              input_ids,
-              max_new_tokens=generate_tokens,
+              encoded["input_ids"],
+              max_new_tokens=estimated_tokens,
               do_sample=False,
           )
-
-          effective_ids = gen_outputs  # full sequence: prompt + output
-
-          # Save model output text
-          self.model_output = self.tokenizer.decode(
-              gen_outputs[0], skip_special_tokens=True
-          )
-
-      # Now run full forward pass on the final sequence to capture activations
+          
+          # Decode and get full text
+          full_text = self.tokenizer.decode(gen_outputs[0], skip_special_tokens=True)
+          words = full_text.split()
+          
+          # Check if we have enough words now
+          if timestep > len(words):
+              timestep = len(words)  # Use all available words
+      
+      # Slice to get only the first 'timestep' words
+      sliced_words = words[:timestep]
+      sliced_text = " ".join(sliced_words)
+      
+      # Tokenize the sliced text
+      device = next(self.model.parameters()).device
+      encoded = self.tokenizer(sliced_text, return_tensors="pt").to(device)
+      effective_ids = encoded["input_ids"]
+      
+      # Run forward pass with the sliced text
       with torch.no_grad():
-          # Check if effective_ids is empty before passing to model
-          if effective_ids.numel() == 0: # Check if the tensor has any elements
-              raise ValueError("Effective input IDs are empty, cannot get activations. Ensure a valid prompt and timestep.")
+          if effective_ids.numel() == 0:
+              raise ValueError("Effective input IDs are empty, cannot get activations.")
           self.model(input_ids=effective_ids)
 
       hook.remove()
@@ -131,7 +161,8 @@ class ModelWrapper:
       if "value" not in activations:
           raise RuntimeError(f"No activations captured for layer '{layer_name}'")
 
-      # Size will be [1, total_length, hidden_size]
+      # activations["value"] has shape [1, num_tokens, hidden_size]
+      # Return all activations for all tokens in the sliced text
       return activations["value"].tolist()
 
     def get_layer_biases(self, layer_name: str):
@@ -228,5 +259,5 @@ class ModelWrapper:
     def set_timestep(self, index: int):
         self.current_timestep = index
 
-    def set_max_new_tokens(self,max_new_tokens : int): 
-        self.max_new_tokens = max_new_tokens
+    def set_temperature(self,temp : int):
+      self.temperature = temp
