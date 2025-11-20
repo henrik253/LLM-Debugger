@@ -74,6 +74,10 @@ class ModelWrapper:
         return summary
 
     def get_layer_activations(self, layer_name: str):
+      
+      if self.model_output == '':
+          return None 
+      
       activations = {}
 
       # Find the layer/module

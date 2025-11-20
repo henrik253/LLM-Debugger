@@ -200,9 +200,12 @@ async function handle_layer(layer_information: any, layer_id: string) {
   if (layer_information.parameters?.weight) {
     console.log(layer_information.parameters.weight)
   }
-
+  
+  if(layer_id.length > 1)
+    return 
   // Biases
   try {
+  
     const biases = await client.getLayerBiases(props.model, layer_id)
     console.log('biases', biases)
     layerData.value.biases = Array.isArray(biases)
