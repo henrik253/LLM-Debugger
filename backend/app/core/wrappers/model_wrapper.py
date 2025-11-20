@@ -12,6 +12,7 @@ class ModelWrapper:
         self.current_model_output = ''
         self.current_prompt = ''
         self.temperature = 0.1
+        self.max_new_tokens = 20
 
     def get_model_output(self, prompt: str):
         if prompt == self.current_prompt:
@@ -19,7 +20,7 @@ class ModelWrapper:
 
         self.current_prompt = prompt
         input_ids = self.tokenizer(prompt, return_tensors="pt").to("cuda")
-        outputs = self.model.generate(**input_ids,temperature=self.temperature)
+        outputs = self.model.generate(**input_ids,temperature=self.temperature,max_new_tokens=self.max_new_tokens)
         self.model_output = self.tokenizer.decode(outputs[0])
         return self.model_output
 
@@ -267,6 +268,9 @@ class ModelWrapper:
 
     def set_timestep(self, index: int):
         self.current_timestep = index
+    
+    def set_max_new_tokens(self,max_new_tokens : int):
+        self.max_new_tokens = max_new_tokens
 
     def set_temperature(self,temp : float):
       self.temperature = temp
