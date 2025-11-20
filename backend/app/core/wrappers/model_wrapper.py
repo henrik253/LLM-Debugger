@@ -83,10 +83,14 @@ class ModelWrapper:
 
       # Hook to capture activations
       def hook_fn(_module, _input, output):
+
           # Handle different output types
           if isinstance(output, tuple):
               output = output[0]
-          
+          print('module input output')
+          print(_module)
+          print(_input)
+          print(output)
           # Check if it's a model output object (like CausalLMOutputWithPast)
           if hasattr(output, 'last_hidden_state'):
               output = output.last_hidden_state
