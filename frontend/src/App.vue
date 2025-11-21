@@ -28,7 +28,7 @@ async function sendPrompt(prompt: string) {
 function updateTime(time: number) { currentTime.value = time }
 function hookLayer(layerName: string) { console.log('Hook layer:', layerName) }
 function unhookLayer(layerName: string) { console.log('Unhook layer:', layerName) }
-function changeModel(newModel: string) { model.value = newModel }
+
 
 const selectedNode = ref('')
 
@@ -43,9 +43,19 @@ async function loadModelGraph(modelName : string) {
   const layers = await client.getLayerNames(modelName)
   const architecture = await client.getModelArchitecture(modelName)
 
-  // Assign to reactive ref AFTER fetching
+  
   graphJson.value = layers
   architectureJson.value = architecture
+}
+
+
+function changeModel(newModel: string) { 
+  
+  if(newModel == model.value)
+    return 
+
+  model.value = newModel 
+  loadModelGraph(model.value)
 }
 
 // Call async function

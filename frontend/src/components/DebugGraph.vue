@@ -274,25 +274,9 @@ function pathsToNestedGraph(paths: string[]): { nodes: GraphNode[] } {
   return arrangeTopLevel(tree)
 }
 
-// Sample data for testing
-const sampleLayers = [
-  "",
-  "model",
-  "model.embed_tokens",
-  "model.layers",
-  "model.layers.0",
-  "model.layers.0.self_attn",
-  "model.layers.0.self_attn.q_proj",
-  "model.layers.0.self_attn.k_proj",
-  "model.layers.0.mlp",
-  "model.layers.0.mlp.gate_proj",
-  "model.layers.1",
-  "model.layers.1.self_attn",
-  "model.layers.1.mlp"
-]
 
 const graphData = computed(() => {
-  const layerList = props.layers || sampleLayers
+  const layerList = props.layers
   const graph = pathsToNestedGraph(layerList)
   
   return {

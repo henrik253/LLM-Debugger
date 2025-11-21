@@ -1,6 +1,12 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import gc
+from functools import partial 
+
+
+executed_layers = []
+def get_layer_name_hook(name,module,input,output): 
+  executed_layers.append(name)
 
 class ModelWrapper:
     def __init__(self, model_name: str):
@@ -26,6 +32,20 @@ class ModelWrapper:
 
     def get_layer_names(self):
       return [name for name, _ in self.model.named_modules()]
+
+    def get_layer_names_forward_order(self):
+      hooks = []
+      executed_layers.clear() 
+      for idx, m in self.model.named_modules():
+          hook = m.register_forward_hook(partial(get_layer_name_hook,idx))
+          hooks.append(hook)
+      
+      output = self.get_model_output(prompt = 'Hi')
+
+      for hook in hooks:
+        hook.remove()
+      return executed_layers 
+    
 
     def get_network_architecture_to_json(self):
         model_dict = {}
@@ -240,3 +260,5 @@ class ModelWrapper:
 
     def set_temperature(self,temp : float):
       self.temperature = temp
+
+
