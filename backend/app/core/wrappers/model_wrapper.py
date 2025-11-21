@@ -13,7 +13,7 @@ class ModelWrapper:
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name, device_map="cuda")
         self.model_name = model_name
-        self.current_timestep = 0
+        self.current_timestep = 1
         self.model_output = ''
         self.current_model_output = ''
         self.current_prompt = ''
