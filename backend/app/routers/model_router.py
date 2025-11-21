@@ -47,7 +47,7 @@ def get_layer_names(model: str):
         wrapper = model_manager.get_wrapper(model)
     except:
         raise HTTPException(status_code=404, detail="Model not loaded")
-    return {"layers": wrapper.get_layer_names()}
+    return {"layers": wrapper.get_layer_names_forward_order()}
 
 
 @router.get("/activations")
