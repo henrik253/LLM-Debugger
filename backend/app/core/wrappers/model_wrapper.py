@@ -21,9 +21,6 @@ class ModelWrapper:
         self.max_new_tokens = 20
 
     def get_model_output(self, prompt: str):
-        if prompt == self.current_prompt:
-            return self.model_output
-
         self.current_prompt = prompt
         input_ids = self.tokenizer(prompt, return_tensors="pt").to("cuda")
         outputs = self.model.generate(**input_ids,temperature=self.temperature,max_new_tokens=self.max_new_tokens)

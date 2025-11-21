@@ -83,7 +83,6 @@ const activationsOption = ref<any>(null)
 async function handleTimestepChange() {
   try {
     await client.setTimestep(props.model, timestepValue.value)
-    console.log("Sent timestep update:", timestepValue.value)
 
     // reload layer data if a layer is selected
     if (currentLayerId.value && layerData.value.layerInfo) {
@@ -97,6 +96,7 @@ async function handleTimestepChange() {
 
 // Watch for data changes and update chart options
 watch(() => layerData.value.biases, (data) => {
+  console.log('biaes changed', data)
   if (data && data.length > 0) {
     biasesOption.value = {
       title: { text: 'Layer Biases', textStyle: { fontSize: 14 } },
@@ -154,13 +154,18 @@ function onModelOutputChanged(output: string) {
 watch(() => layerData.value.activations, (data) => {
   if (data && data.length > 0) {
     // Handle deeply nested array structure - unwrap extra levels
-    let unwrappedData = data;
+    let unwrappedData : any | number[] = data;
     console.log('raw ac', data)
     while (Array.isArray(unwrappedData) && unwrappedData.length === 1 && Array.isArray(unwrappedData[0])) {
-
-
       unwrappedData = unwrappedData[0];
     }
+
+    console.log('unwrapped')
+    console.log(unwrappedData)
+
+    if(unwrappedData[unwrappedData.length - 1])
+      unwrappedData = (unwrappedData[unwrappedData.length - 1])
+
     console.log('unwrapped')
     console.log(unwrappedData)
 
@@ -189,6 +194,12 @@ watch(
   }
 )
 
+
+async function handleResetNeuronBias(){
+  await client.resetModel(props.model)
+  await handle_layer(layerData.value.layerInfo, currentLayerId.value)
+}
+
 async function handle_layer(layer_information: any, layer_id: string) {
   currentLayerId.value = layer_id
   layerData.value.layerInfo = layer_information
@@ -210,7 +221,8 @@ async function handle_layer(layer_information: any, layer_id: string) {
     console.log('biases', biases)
     layerData.value.biases = Array.isArray(biases)
       ? biases
-      : (biases?.biases || null)
+      : (biases?.bias || null)
+    console.log('layerdata',layerData.value.biases )
   } catch (err) {
     console.error('biases error', err)
     layerData.value.biases = null
@@ -297,6 +309,8 @@ async function handleSetNeuronBias() {
     alert('Failed to set neuron bias')
   }
 }
+
+
 </script>
 
 <template>
@@ -389,7 +403,9 @@ async function handleSetNeuronBias() {
           <input type="number" v-model.number="biasValue" step="0.01" />
         </div>
       </div>
-      <button @click="handleSetNeuronBias" class="set-bias-btn">Set Bias</button>
+      <button @click="handleSetNeuronBias" class="bias-btn-small">Set Bias</button>
+
+      <button @click="handleResetNeuronBias" class="bias-btn-small">Reset All</button>
     </div>
 
     <!-- Charts Section -->
@@ -397,23 +413,24 @@ async function handleSetNeuronBias() {
       <v-chart 
         v-if="biasesOption" 
         :option="biasesOption" 
-        style="height: 300px; width: 100%; margin-bottom: 20px;" 
-      />
-      <v-chart 
-        v-if="avgWeightsOption" 
-        :option="avgWeightsOption" 
-        style="height: 300px; width: 100%; margin-bottom: 20px;" 
-      />
-      <v-chart 
-        v-if="stdWeightsOption" 
-        :option="stdWeightsOption" 
-        style="height: 300px; width: 100%; margin-bottom: 20px;" 
+        style="height: 300px; width: 100%; margin-bottom: 0px;" 
       />
       <v-chart 
         v-if="activationsOption" 
         :option="activationsOption" 
-        style="height: 300px; width: 100%; margin-bottom: 5px;" 
+        style="height: 300px; width: 100%; margin-bottom: 0px;" 
       />
+      <v-chart 
+        v-if="avgWeightsOption" 
+        :option="avgWeightsOption" 
+        style="height: 300px; width: 100%; margin-bottom: 0px;" 
+      />
+      <v-chart 
+        v-if="stdWeightsOption" 
+        :option="stdWeightsOption" 
+        style="height: 300px; width: 100%; margin-bottom: 0px;" 
+      />
+
     </div>
   </div>
 </template>
@@ -494,7 +511,7 @@ async function handleSetNeuronBias() {
 }
 
 .timestep-section {
-  margin-bottom: 24px;
+  margin-bottom: 10px;
   padding: 16px;
   background-color: #f8f9fa;
   border-radius: 6px;
@@ -634,28 +651,33 @@ async function handleSetNeuronBias() {
   border-color: #4a90e2;
 }
 
-.set-bias-btn {
-  width: 100%;
-  padding: 10px;
-  background-color: #4a90e2;
+.bias-btn-small {
+  padding: 8px 10px;          /* slightly smaller than original 10px */
+  background-color: #4a90e2;  
   color: white;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 6px;          /* same as original */
+  font-size: 13px;             /* slightly smaller text */
   font-weight: 500;
   cursor: pointer;
   transition: background-color 0.2s;
+  margin-right: 8px;           /* space between buttons */
+  min-width: 80px;             /* ensure decent clickable area */
 }
 
-.set-bias-btn:hover {
-  background-color: #357abd;
+.bias-btn-small:last-child {
+  margin-right: 0;             /* remove margin on last button */
 }
 
-.set-bias-btn:active {
-  background-color: #2a5d8f;
+.bias-btn-small:hover {
+  background-color: #357abd;   /* same hover as original */
+}
+
+.bias-btn-small:active {
+  background-color: #2a5d8f;   /* same active as original */
 }
 
 .charts-section {
-  margin-top: 24px;
+  margin-top: 0px;
 }
 </style>
