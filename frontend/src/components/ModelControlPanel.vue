@@ -24,10 +24,11 @@ const showModelDropdown = ref(false)
 
 // Timestep slider state
 const timestepValue = ref(1)
-const timestepMax = ref(100) // You can adjust this based on your needs
+const timestepMax = ref(1) // You can adjust this based on your needs
 
 
 const maxNewTokensValue = ref<number | null>(null)
+const temperatureValue = ref<number | null>(0.01)
 
 async function handleSetMaxNewTokens() {
   if (maxNewTokensValue.value === null || isNaN(maxNewTokensValue.value)) {
@@ -40,6 +41,18 @@ async function handleSetMaxNewTokens() {
   } catch (err) {
     console.error("Error setting max new tokens:", err)
     alert("Failed to set max new tokens")
+  }
+}
+
+async function handleSetTemperature() {
+  if (temperatureValue.value === null || isNaN(temperatureValue.value)) {
+    return
+  }
+  try {
+    await client.setTemperature(props.model, temperatureValue.value)
+  } catch (err) {
+    console.error("Error setting temperature:", err)
+    alert("Failed to set temperature")
   }
 }
 
@@ -96,7 +109,6 @@ async function handleTimestepChange() {
 
 // Watch for data changes and update chart options
 watch(() => layerData.value.biases, (data) => {
-  console.log('biaes changed', data)
   if (data && data.length > 0) {
     biasesOption.value = {
       title: { text: 'Layer Biases', textStyle: { fontSize: 14 } },
@@ -147,27 +159,23 @@ watch(
   }
 )
 
-function onModelOutputChanged(output: string) {
+async function onModelOutputChanged(output: string) {
   timestepMax.value = output.split(' ').length
+  await handle_layer(layerData.value.layerInfo, currentLayerId.value)
 }
 
 watch(() => layerData.value.activations, (data) => {
   if (data && data.length > 0) {
     // Handle deeply nested array structure - unwrap extra levels
     let unwrappedData : any | number[] = data;
-    console.log('raw ac', data)
+
     while (Array.isArray(unwrappedData) && unwrappedData.length === 1 && Array.isArray(unwrappedData[0])) {
       unwrappedData = unwrappedData[0];
     }
 
-    console.log('unwrapped')
-    console.log(unwrappedData)
-
     if(unwrappedData[unwrappedData.length - 1])
       unwrappedData = (unwrappedData[unwrappedData.length - 1])
 
-    console.log('unwrapped')
-    console.log(unwrappedData)
 
     if (unwrappedData && unwrappedData.length > 0) {
       activationsOption.value = {
@@ -189,7 +197,7 @@ watch(() => layerData.value.activations, (data) => {
 watch(
   () => props.currentNode,
   (newVal, oldVal) => {
-    console.log("currentNode changed:", oldVal, "→", newVal)
+    console.log("currentLayer changed:", oldVal, "→", newVal)
     handleCurrentNodeChange(newVal)
   }
 )
@@ -204,25 +212,15 @@ async function handle_layer(layer_information: any, layer_id: string) {
   currentLayerId.value = layer_id
   layerData.value.layerInfo = layer_information
   
-  if (layer_information.parameters?.bias) {
-    console.log(layer_information.parameters.bias)
-  }
-
-  if (layer_information.parameters?.weight) {
-    console.log(layer_information.parameters.weight)
-  }
-
   if(layer_id.length <= 1)
     return 
-  // Biases
+
   try {
   
     const biases = await client.getLayerBiases(props.model, layer_id)
-    console.log('biases', biases)
     layerData.value.biases = Array.isArray(biases)
       ? biases
       : (biases?.bias || null)
-    console.log('layerdata',layerData.value.biases )
   } catch (err) {
     console.error('biases error', err)
     layerData.value.biases = null
@@ -231,36 +229,33 @@ async function handle_layer(layer_information: any, layer_id: string) {
   // Avg weights
   try {
     const avg_weights = await client.getLayerInputAvgs(props.model, layer_id)
-    console.log('avg_weights', avg_weights)
     layerData.value.avg_weights = Array.isArray(avg_weights)
       ? avg_weights
       : (avg_weights?.input_avgs || null)
   } catch (err) {
-    console.error('avg_weights error', err)
+    console.error('avg_weights error')
     layerData.value.avg_weights = null
   }
 
   // Std weights
   try {
     const std_weights = await client.getLayerInputStds(props.model, layer_id)
-    console.log('weights', std_weights)
     layerData.value.std_weights = Array.isArray(std_weights)
       ? std_weights
       : (std_weights?.input_stds || null)
   } catch (err) {
-    console.error('std_weights error', err)
+    console.error('std_weights error')
     layerData.value.std_weights = null
   }
 
   // Activations
   try {
     const activations = await client.getLayerActivations(props.model, layer_id)
-    console.log('activations', activations)
     layerData.value.activations = Array.isArray(activations)
       ? activations
       : (activations?.activations || null)
   } catch (err) {
-    console.error('activations error', err)
+    console.error('activations error')
     layerData.value.activations = null
   }
 }
@@ -271,12 +266,11 @@ let currentLayer = ''
 
 // Function that runs whenever currentNode changes
 function handleCurrentNodeChange(node: string) {
-  console.log("Handling new currentNode:", node)
   
   if (!node) return
   
   const path = props.currentNode.split('.') 
-  console.log(path)
+
   let currentLayer = props.architecture.layers
 
   for (const key of path) {
@@ -305,7 +299,7 @@ async function handleSetNeuronBias() {
     // Refresh the data
     await handle_layer(layerData.value.layerInfo, currentLayerId.value)
   } catch (error) {
-    console.error('Error setting neuron bias:', error)
+    console.error('Error setting neuron bias')
     alert('Failed to set neuron bias')
   }
 }
@@ -346,19 +340,6 @@ async function handleSetNeuronBias() {
 
     <!-- Timestep Slider Section -->
     <div class="timestep-section">
-      <label>Timestep:</label>
-      <div class="slider-container">
-        <input
-          type="range"
-          :min="1"
-          :max="timestepMax"
-          :step="1"
-          v-model.number="timestepValue"
-          @change="handleTimestepChange"
-          class="timestep-slider"
-        />
-        <span class="timestep-value">{{ timestepValue }}</span>
-      </div>
       <label>Max New Tokens:</label>
   <div class="input-group">
     <input
@@ -382,6 +363,32 @@ async function handleSetNeuronBias() {
       Set
     </button>
   </div>
+   <label>Timestep:</label>
+      <div class="slider-container">
+        <input
+          type="range"
+          :min="1"
+          :max="timestepMax"
+          :step="1"
+          v-model.number="timestepValue"
+          @change="handleTimestepChange"
+          class="timestep-slider"
+        />
+        <span class="timestep-value">{{ timestepValue }}</span>
+      </div>
+  <label style="margin-top: 16px;">Temperature:</label>
+  <div class="slider-container">
+    <input
+      type="range"
+      :min="0.01"
+      :max="1.0"
+      :step="0.01"
+      v-model.number="temperatureValue"
+      @change="handleSetTemperature"
+      class="timestep-slider"
+    />
+    <span class="timestep-value">{{ temperatureValue?.toFixed(2) || '0.00' }}</span>
+  </div>
     </div>
 
     <!-- Current Node Heading -->
@@ -391,7 +398,7 @@ async function handleSetNeuronBias() {
     </div>
 
     <!-- Set Neuron Bias Section -->
-    <div v-if="currentLayerId" class="neuron-bias-section">
+    <div v-if="currentLayerId && biasesOption" class="neuron-bias-section">
       <h3>Set Neuron Bias</h3>
       <div class="input-group">
         <div class="input-field">

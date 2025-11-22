@@ -145,7 +145,7 @@ export class BackendClient {
 
   setTemperature(model: string, temperature: number) {
     return this.fetchJson<{ temperature: number }>(
-      `/model/max-new-tokens?model=${encodeURIComponent(model)}&temp=${temperature}`,
+      `/model/temperature?model=${encodeURIComponent(model)}&temperature=${temperature}`,
       { method: "POST" }
     );
   }

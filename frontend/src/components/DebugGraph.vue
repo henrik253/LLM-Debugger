@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { VueFlow, useVueFlow } from '@vue-flow/core'
+import { VueFlow, useVueFlow, Handle, Position } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
@@ -9,6 +9,9 @@ import { MiniMap } from '@vue-flow/minimap'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
+import type Graph from 'echarts/types/src/data/Graph.js'
+import type Tree from 'echarts/types/src/data/Tree.js'
+
 
 
 
@@ -25,6 +28,17 @@ interface GraphNode {
   style?: Record<string, any>
   hidden?: boolean
   zIndex?: number
+  sourcePosition: string,
+  targetPosition: string,
+}
+
+interface GraphEdge{
+  id: string,
+  source: string,
+  target: string,
+  type: string,
+  sourcePosition: string, 
+  targetPosition: string
 }
 
 interface TreeNode {
@@ -44,6 +58,8 @@ const emit = defineEmits<{
 }>()
 
 const nodes = ref<GraphNode[]>([])
+const edges = ref<GraphEdge[]>([])
+
 const expandedNodes = ref<Set<string>>(new Set())
 
 const { fitView } = useVueFlow()
@@ -206,6 +222,8 @@ function calculateNestedLayout(
       parentNode: parentId,
       extent: parentId ? 'parent' : undefined,
       hidden: !ancestorsExpanded && parentId !== undefined,
+      sourcePosition: 'left',
+      targetPosition: 'right',
       zIndex: hasChildren ? 10 : 1,
       style: {
         backgroundColor: shouldShowChildren && hasChildren 
@@ -271,15 +289,64 @@ function arrangeTopLevel(tree: TreeNode): { nodes: GraphNode[] } {
 ------------------------------------------------------- */
 function pathsToNestedGraph(paths: string[]): { nodes: GraphNode[] } {
   const tree = buildTree(paths)
+  
   return arrangeTopLevel(tree)
 }
 
+function arrangeEdges(root : Map<string, TreeNode>,edges : GraphEdge[]){
+
+  if(root.children.length === undefined || root.children.length == 0)
+    return null  
+
+  let currentNode = root.id
+
+
+  let lastNode = currentNode.id
+  let firstNode = true 
+  for( const child of root.children){
+    const edge : GraphEdge = {
+        id: currentNode + ' ' + child.id,
+        source: currentNode,
+        target: child.id,
+        type: 'default',
+        sourcePosition: firstNode ? 'left' : 'right', 
+        targetPosition: firstNode? 'right' : 'left', 
+    }
+    edges.push(edge)
+    firstNode = false
+    lastNode = currentNode 
+    currentNode = child.id
+    arrangeEdges(child,edges)
+  }
+  
+  const edge : GraphEdge = {
+      id: currentNode + ' ' + lastNode,
+      source: currentNode,
+      target: lastNode,
+      type: 'default',
+      sourcePosition: 'left', 
+        targetPosition: 'right', 
+    }
+    edges.push(edge)
+}
+
+function edgesForNestedGraph(paths: string[]): {edges : GraphEdge[]}{
+  const tree = buildTree(paths)
+  const edges : GraphEdge[] = []
+  for(const child of tree.children)
+    arrangeEdges(child,edges)
+  
+
+  return {edges : edges} 
+}
 
 const graphData = computed(() => {
   const layerList = props.layers
   const graph = pathsToNestedGraph(layerList)
-  
+  //const edgesData = edgesForNestedGraph(layerList)
+
   return {
+   // edges : edgesData.edges,
     nodes: graph.nodes.map((node) => ({
       ...node,
       style: {
@@ -299,7 +366,7 @@ watch(
   () => graphData.value,
   (data) => {
     nodes.value = data.nodes
-
+    edges.value = data.edges
   },
   { immediate: true }
 )
@@ -345,6 +412,7 @@ function onNodeClick(event: any) {
   <div class="vue-flow-wrapper">
     <VueFlow
       :nodes="nodes"
+      :edges="edges"
       :fit-view-on-init="true"
       :min-zoom="0.05"
       :max-zoom="2"
@@ -360,6 +428,10 @@ function onNodeClick(event: any) {
             </span>
           </div>
         </div>
+        
+        <Handle type="source" :position="Position.Right" :id="'source-' + id" />
+
+        <Handle type="target" :position="Position.Left" :id="'target-' + id" />
       </template>
       <MiniMap />
       <Controls />
