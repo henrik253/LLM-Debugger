@@ -7,7 +7,6 @@ import threading
 import asyncio
 
 from backend.app.routers.model_router import router as model_router
-from backend.app.routers.main_router import router as main_router
 
 
 ngrok.kill()
@@ -36,7 +35,6 @@ async def start_backend():
         print("google.colab userdata.get('ngrok-key') failed")
 
     app.include_router(model_router)
-    app.include_router(main_router)
 
     thread = threading.Thread(target=start_uvicorn, daemon=True)
     thread.start()
